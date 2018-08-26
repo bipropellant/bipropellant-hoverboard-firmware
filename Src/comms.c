@@ -65,10 +65,21 @@ void consoleScope() {
     USART_sensorSend(0, uart_buf, strlen(uart_buf), 0);
     USART_sensorSend(1, uart_buf, strlen(uart_buf), 0);
   #endif
+
+  #if defined DEBUG_SERIAL_ASCII && defined DEBUG_SOFTWARE_SERIAL
+    memset(uart_buf, 0, sizeof(uart_buf));
+    sprintf(uart_buf, "1:%i 2:%i 3:%i 4:%i 5:%i 6:%i 7:%i 8:%i\r\n", ch_buf[0], ch_buf[1], ch_buf[2], ch_buf[3], ch_buf[4], ch_buf[5], ch_buf[6], ch_buf[7]);
+    softwareserial_Send(uart_buf, strlen(uart_buf));
+  #endif
+
 }
 
 void consoleLog(char *message)
 {
+    #ifdef DEBUG_SOFTWARE_SERIAL
+      softwareserial_Send((uint8_t *)message, strlen(message));
+    #endif
+
     #if defined DEBUG_SERIAL_SENSOR && defined CONTROL_SENSOR
     USART_sensorSend(1, message, strlen(message), 0);
     #else

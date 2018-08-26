@@ -20,7 +20,7 @@ UART_HandleTypeDef sensoruart2;
 UART_HandleTypeDef sensoruart3;
 
 // un comment to run 8 bit with non original sensor boards ?
-//#define SENSOR8BIT
+#define SENSOR8BIT
 #define SENSOR_BUFFER_SIZE 256
 typedef struct tag_sensor_buffer {
 #ifdef SENSOR8BIT    

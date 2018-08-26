@@ -56,6 +56,9 @@ volatile unsigned long skippedhall;
 extern volatile int HallPosn[2];
 #endif
 
+extern volatile unsigned int timerval;
+extern volatile unsigned int ssbits;
+
 uint8_t button1, button2;
 
 int steer; // global variable for steering. -1000 to 1000
@@ -195,6 +198,7 @@ int main(void) {
     HallInterruptinit();
   #endif
 
+  SoftwareSerialInit();
 
   #ifdef CONTROL_PPM
     PPM_Init();
@@ -372,11 +376,12 @@ int main(void) {
 
       // send twice to make sure each side gets it.
       // if we sent diagnositc data, it seems to need this.
+#ifdef TEMPOUT      
       USART_sensorSend(0, &lights[0], 6, 1);
       USART_sensorSend(0, &lights[0], 6, 1);
       USART_sensorSend(1, &lights[1], 6, 1);
       USART_sensorSend(1, &lights[1], 6, 1);
-
+#endif
 
     #else
 
@@ -451,6 +456,25 @@ int main(void) {
         HallPosn[0], HallPosn[1]); 
       consoleLog(tmp);
 #endif
+
+      SoftwareSerialReadTimer();
+      sprintf(tmp, "\r\ntimer %u\r\n", 
+        timerval); 
+      consoleLog(tmp);
+
+      short rx = -1;
+      while ((rx = softwareserial_getrx()) >= 0){
+        sprintf(tmp, "%X ", 
+          rx); 
+        consoleLog(tmp);
+      }
+
+      softwareserial_Send("hello\r\n", 7);
+
+
+      sprintf(tmp, "\r\nss bits %u\r\n", 
+        ssbits); 
+      consoleLog(tmp);
 
     }
 

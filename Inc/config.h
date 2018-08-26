@@ -46,7 +46,7 @@
 // ############################### SERIAL DEBUG ###############################
 
 //#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuck or lcd) is used!
-#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
+//#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
 #define DEBUG_BAUD       115200     // UART baud rate
 //#define DEBUG_SERIAL_SERVOTERM
 #define DEBUG_SERIAL_ASCII          // "1:345 2:1337 3:0 4:0 5:0 6:0 7:0 8:0\r\n"
@@ -61,7 +61,7 @@
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
 #define CONTROL_SENSOR
-#define CONTROL_SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards
+#define CONTROL_SENSOR_BAUD     9600    // control via usart from GD32 based sensor boards
 //#define CONTROL_SENSOR_BAUD     26300    // reported baudrate for other sensor boards?
 
 // ###### CONTROL VIA RC REMOTE ######
@@ -92,8 +92,15 @@
 
 
 // ############################### SOFTWARE SERIAL ###############################
+//
+#define SOFTWARE_SERIAL
+#define DEBUG_SOFTWARE_SERIAL
 #define SOFTWARE_SERIAL_PIN GPIO_PIN_2
 #define SOFTWARE_SERIAL_PORT GPIOB
+#define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
+#define SOFTWARE_SERIAL_TX_PORT GPIOC
+#define SOFTWARE_SERIAL_BAUD 19200
+
 
 
 // ############################### DRIVING BEHAVIOR ###############################
