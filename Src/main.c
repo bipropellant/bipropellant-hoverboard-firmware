@@ -319,7 +319,8 @@ int main(void) {
       lights[1].colour = SENSOR_COLOUR_RED;
 
       for (int i = 0; i < 2; i++){
-        if (sensor_data[i].AA_55 == 0x55){
+        // prevent activation if angle is large (+-17000 -> upside-down)
+        if (sensor_data[i].AA_55 == 0x55 && (abs(sensor_data[i].Angle) < 10000)){
           lights[i].colour = SENSOR_COLOUR_GREEN;
           memcpy(&last_sensor_data[i], &sensor_data[i], sizeof(last_sensor_data[i]));
           sensor_ok[i] = 3;
