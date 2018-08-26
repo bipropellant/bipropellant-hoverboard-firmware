@@ -81,6 +81,12 @@
 // left sensor board cable. keep cable short, use shielded cable, use ferrits, stabalize voltage in nunchuck, use the right one of the 2 types of nunchucks, add i2c pullups. use original nunchuck. most clones does not work very well.
 //#define CONTROL_NUNCHUCK            // use nunchuck as input. disable DEBUG_SERIAL_USART3!
 
+
+// ############################### ENABLE FLASH STORAGE MECHANISM ###############################
+// this includes flasharea.c and flashaccess.c
+///#define FLASH_STORAGE
+
+
 // ############################### DRIVING BEHAVIOR ###############################
 
 // inputs:

@@ -25,6 +25,7 @@
 #include "config.h"
 #include "comms.h"
 #include "sensorcoms.h"
+#include "flashaccess.h"
 //#include "hd44780.h"
 
 void SystemClock_Config(void);
@@ -69,6 +70,7 @@ extern volatile uint32_t timeout; // global variable for timeout
 extern float batteryVoltage; // global variable for battery voltage
 
 uint32_t inactivity_timeout_counter;
+uint32_t debug_counter = 0;
 
 extern uint8_t nunchuck_data[6];
 #ifdef CONTROL_PPM
@@ -87,7 +89,15 @@ void poweroff() {
             HAL_Delay(100);
         }
         HAL_GPIO_WritePin(OFF_PORT, OFF_PIN, 0);
-        while(1) {}
+
+        // if we are powered from sTLink, this bit allows the system to be started again with the button.
+        while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {}
+
+        while (1){
+          if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)){
+            HAL_NVIC_SystemReset();
+          }
+        }
     }
 }
 
@@ -164,6 +174,15 @@ int main(void) {
   char data_read[2] = {0,0};
   int OnBoard = 0;
   int Center[2] = {0, 0};
+  short calibrationdata[2] = {0, 0};
+  int calibrationread = 0;
+
+  #ifdef FLASH_STORAGE
+    if (sizeof(calibrationdata) == readFlash(calibrationdata, sizeof(calibrationdata))){
+      calibrationread = 1;
+    }
+  #endif
+
   #endif
 
   #ifdef CONTROL_PPM
@@ -208,7 +227,13 @@ int main(void) {
 
   enable = 1;  // enable motors
 
+  // ####### POWEROFF BY POWER-BUTTON #######
+  int power_button_held = HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
+  
+  unsigned int startup_counter = 0;
+
   while(1) {
+    startup_counter++;
     HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
     cmd1 = 0;
     cmd2 = 0;
@@ -290,7 +315,6 @@ int main(void) {
       }
 
 
-      memset(lights, 0, sizeof(lights));
       lights[0].colour = SENSOR_COLOUR_RED;
       lights[1].colour = SENSOR_COLOUR_RED;
 
@@ -308,14 +332,19 @@ int main(void) {
 
       if (sensor_ok[0] && sensor_ok[1]){
 
-        if (!OnBoard){
+        if (!OnBoard && !calibrationread){
           Center[0] = last_sensor_data[0].Angle;
           Center[1] = last_sensor_data[1].Angle;
           OnBoard = 1;
         }
 
-        speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/3, -300, 300);
-        speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/3, -300, 300);
+        if (calibrationread){
+          Center[0] = calibrationdata[0];
+          Center[1] = calibrationdata[1];
+        }
+
+        speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
+        speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
         timeout = 0;
         enable = 1;
         lights[0].colour = SENSOR_COLOUR_YELLOW;
@@ -324,8 +353,8 @@ int main(void) {
 
       } else {
         OnBoard = 0;
-        speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/3, -300, 300);
-        speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/3, -300, 300);
+        speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
+        speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
         enable = 0;
       }
 
@@ -374,7 +403,7 @@ int main(void) {
     lastSpeedR = speedR;
 
 
-    if (inactivity_timeout_counter % 25 == 0) {
+    if ((debug_counter++) % 100 == 0) {
       // ####### CALC BOARD TEMPERATURE #######
       board_temp_adc_filtered = board_temp_adc_filtered * 0.99 + (float)adc_buffer.temp * 0.01;
       board_temp_deg_c = ((float)TEMP_CAL_HIGH_DEG_C - (float)TEMP_CAL_LOW_DEG_C) / ((float)TEMP_CAL_HIGH_ADC - (float)TEMP_CAL_LOW_ADC) * (board_temp_adc_filtered - (float)TEMP_CAL_LOW_ADC) + (float)TEMP_CAL_LOW_DEG_C;
@@ -397,16 +426,50 @@ int main(void) {
       setScopeChannel(6, (int)board_temp_adc_filtered);  // 7: for board temperature calibration
       setScopeChannel(7, (int)board_temp_deg_c);  // 8: for verifying board temperature calibration
       consoleScope();
+
+      char tmp[40];
+      sprintf(tmp, "\r\ncal: %d %d", calibrationdata[0], calibrationdata[1]); 
+      consoleLog(tmp);
     }
 
 
-    // ####### POWEROFF BY POWER-BUTTON #######
-    if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) && weakr == 0 && weakl == 0) {
-      enable = 0;
-      while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {}
-      poweroff();
-    }
+    if (power_button_held){
 
+      // highlight that the button has been helpd for >5s
+      if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
+        #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+          lights[0].flashcount = 2;
+          lights[1].flashcount = 2;
+        #endif
+      }
+
+      if (!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)){
+        // if it was held for > 5 seconds
+        if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
+          #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+            calibrationdata[0] = sensor_data[0].Angle;
+            calibrationdata[1] = sensor_data[1].Angle;
+            calibrationread = 1;
+
+            char tmp[40];
+            sprintf(tmp, "\r\n*** Write Flash Calibration data");
+            consoleLog(tmp);
+            writeFlash((unsigned char *) calibrationdata, sizeof(calibrationdata));
+            lights[0].flashcount = 0;
+            lights[1].flashcount = 0;
+          #endif
+        }
+
+        power_button_held = 0;
+      }
+    } else {
+      // ####### POWEROFF BY POWER-BUTTON #######
+      if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) && weakr == 0 && weakl == 0) {
+        enable = 0;
+        while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {}
+        poweroff();
+      }
+    }
 
     // ####### BEEP AND EMERGENCY POWEROFF #######
     if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && abs(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && abs(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3

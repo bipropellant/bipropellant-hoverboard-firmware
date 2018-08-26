@@ -82,6 +82,15 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
+  /* create a section in flash which is aligned on a page boundary, don't really care where. */
+  .myFlashSection :
+  {
+     . = ALIGN(2048);
+     *(.myFlashSection)
+     *(.myFlashSection*)
+     . = ALIGN(2048);
+  } >FLASH
+
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
   .ARM : {
     __exidx_start = .;
