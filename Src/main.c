@@ -51,6 +51,11 @@ typedef struct{
 
 volatile Serialcommand command;
 
+#ifdef HALL_INTERRUPTS
+volatile unsigned long skippedhall;
+extern volatile int HallPosn[2];
+#endif
+
 uint8_t button1, button2;
 
 int steer; // global variable for steering. -1000 to 1000
@@ -184,6 +189,12 @@ int main(void) {
   #endif
 
   #endif
+
+  #ifdef HALL_INTERRUPTS
+    // enables interrupt reading of hall sensors for dead reconing wheel position.
+    HallInterruptinit();
+  #endif
+
 
   #ifdef CONTROL_PPM
     PPM_Init();
@@ -429,8 +440,18 @@ int main(void) {
       consoleScope();
 
       char tmp[40];
-      sprintf(tmp, "\r\ncal: %d %d", calibrationdata[0], calibrationdata[1]); 
+      sprintf(tmp, "\r\ncal: %d %d\r\n\r\n", 
+        calibrationdata[0], 
+        calibrationdata[1]); 
       consoleLog(tmp);
+
+#ifdef HALL_INTERRUPTS
+      sprintf(tmp, "\r\nhall shkipped: %d posnl:%d posnr:%d\r\n", 
+        skippedhall,
+        HallPosn[0], HallPosn[1]); 
+      consoleLog(tmp);
+#endif
+
     }
 
 

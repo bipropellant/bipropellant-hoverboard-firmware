@@ -45,8 +45,8 @@
 
 // ############################### SERIAL DEBUG ###############################
 
-#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuck or lcd) is used!
-//#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
+//#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuck or lcd) is used!
+#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
 #define DEBUG_BAUD       115200     // UART baud rate
 //#define DEBUG_SERIAL_SERVOTERM
 #define DEBUG_SERIAL_ASCII          // "1:345 2:1337 3:0 4:0 5:0 6:0 7:0 8:0\r\n"
@@ -60,7 +60,7 @@
 
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
-//#define CONTROL_SENSOR
+#define CONTROL_SENSOR
 #define CONTROL_SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards
 //#define CONTROL_SENSOR_BAUD     26300    // reported baudrate for other sensor boards?
 
@@ -71,7 +71,7 @@
 
 // ###### CONTROL VIA TWO POTENTIOMETERS ######
 // ADC-calibration to cover the full poti-range: connect potis to left sensor board cable (0 to 3.3V) (do NOT use the red 15V wire in the cable!). see <How to calibrate>. turn the potis to minimum position, write value 1 to ADC1_MIN and value 2 to ADC2_MIN. turn to maximum position and repeat it for ADC?_MAX. make, flash and test it.
-#define CONTROL_ADC                 // use ADC as input. disable DEBUG_SERIAL_USART2!
+//#define CONTROL_ADC                 // use ADC as input. disable DEBUG_SERIAL_USART2!
 #define ADC1_MIN 0                // min ADC1-value while poti at minimum-position (0 - 4095)
 #define ADC1_MAX 4095               // max ADC1-value while poti at maximum-position (0 - 4095)
 #define ADC2_MIN 0                // min ADC2-value while poti at minimum-position (0 - 4095)
@@ -84,7 +84,16 @@
 
 // ############################### ENABLE FLASH STORAGE MECHANISM ###############################
 // this includes flasharea.c and flashaccess.c
-///#define FLASH_STORAGE
+#define FLASH_STORAGE
+
+
+// ############################### ENABLE INTERRUPT READING OF HALL SENSORS FOR POSITION ###############################
+#define HALL_INTERRUPTS
+
+
+// ############################### SOFTWARE SERIAL ###############################
+#define SOFTWARE_SERIAL_PIN GPIO_PIN_2
+#define SOFTWARE_SERIAL_PORT GPIOB
 
 
 // ############################### DRIVING BEHAVIOR ###############################
