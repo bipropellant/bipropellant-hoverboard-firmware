@@ -101,6 +101,9 @@
 #define SOFTWARE_SERIAL_TX_PORT GPIOC
 #define SOFTWARE_SERIAL_BAUD 19200
 
+// ############################### SERIAL PROTOCOL ###############################
+#define INCLUDE_PROTOCOL
+
 
 
 // ############################### DRIVING BEHAVIOR ###############################

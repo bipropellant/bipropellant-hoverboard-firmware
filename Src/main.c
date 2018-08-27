@@ -26,6 +26,7 @@
 #include "comms.h"
 #include "sensorcoms.h"
 #include "flashaccess.h"
+#include "protocol.h"
 //#include "hd44780.h"
 
 void SystemClock_Config(void);
@@ -50,6 +51,11 @@ typedef struct{
 } Serialcommand;
 
 volatile Serialcommand command;
+
+#ifdef CONTROL_SENSOR
+SENSOR_DATA last_sensor_data[2];
+#endif
+
 
 #ifdef HALL_INTERRUPTS
 volatile unsigned long skippedhall;
@@ -109,6 +115,7 @@ void poweroff() {
     }
 }
 
+int speedL = 0, speedR = 0;
 
 int main(void) {
   HAL_Init();
@@ -161,7 +168,6 @@ int main(void) {
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
 
   int lastSpeedL = 0, lastSpeedR = 0;
-  int speedL = 0, speedR = 0;
   float direction = 1;
 
 
@@ -173,7 +179,6 @@ int main(void) {
 
   SENSOR_LIGHTS lights[2];
   SENSOR_DATA sensor_data[2];
-  SENSOR_DATA last_sensor_data[2];
   int sensor_ok[2] = {0,0};
   memset(lights, 0, sizeof(lights));
 
@@ -288,6 +293,14 @@ int main(void) {
       timeout = 0;
     #endif
 
+
+    #ifdef INCLUDE_PROTOCOL
+      // service input serial into out protocol parser
+      short inputc = -1;
+      while ((inputc = softwareserial_getrx()) >= 0){
+        protocol_byte( (unsigned char) inputc );
+      }
+    #endif
 
     #ifdef CONTROL_SENSOR
       // read the last sensor message in the buffer
@@ -462,14 +475,8 @@ int main(void) {
         timerval); 
       consoleLog(tmp);
 
-      short rx = -1;
-      while ((rx = softwareserial_getrx()) >= 0){
-        sprintf(tmp, "%X ", 
-          rx); 
-        consoleLog(tmp);
-      }
 
-      softwareserial_Send("hello\r\n", 7);
+      //softwareserial_Send("hello\r\n", 7);
 
 
       sprintf(tmp, "\r\nss bits %u\r\n", 
