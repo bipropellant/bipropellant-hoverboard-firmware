@@ -54,6 +54,7 @@ volatile Serialcommand command;
 
 #ifdef CONTROL_SENSOR
 SENSOR_DATA last_sensor_data[2];
+int sensor_control = 1;
 #endif
 
 
@@ -367,34 +368,39 @@ int main(void) {
           OnBoard = 1;
         }
 
+#ifdef USE_CALIBRATION_DATA
+      // it's very difficult to start of on the board unless the center is taken at the time of standing on it.
         if (calibrationread){
           Center[0] = calibrationdata[0];
           Center[1] = calibrationdata[1];
         }
+#endif
 
-        speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
-        speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
-        timeout = 0;
-        enable = 1;
-        lights[0].colour = SENSOR_COLOUR_YELLOW;
-        lights[1].colour = SENSOR_COLOUR_YELLOW;
-        inactivity_timeout_counter = 0;
+        if (sensor_control){
+          speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/3, -600, 600);
+          speedR = CLAMP( (last_sensor_data[1].Angle - Center[1])/3, -600, 600);
+          timeout = 0;
+          enable = 1;
+          lights[0].colour = SENSOR_COLOUR_YELLOW;
+          lights[1].colour = SENSOR_COLOUR_YELLOW;
+          inactivity_timeout_counter = 0;
+        }
 
       } else {
         OnBoard = 0;
-        speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
-        speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
-        enable = 0;
+        if (sensor_control){
+          speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
+          speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
+          enable = 0;
+        }
       }
 
       // send twice to make sure each side gets it.
       // if we sent diagnositc data, it seems to need this.
-#ifdef TEMPOUT      
       USART_sensorSend(0, &lights[0], 6, 1);
       USART_sensorSend(0, &lights[0], 6, 1);
       USART_sensorSend(1, &lights[1], 6, 1);
       USART_sensorSend(1, &lights[1], 6, 1);
-#endif
 
     #else
 
@@ -464,10 +470,10 @@ int main(void) {
       consoleLog(tmp);
 
 #ifdef HALL_INTERRUPTS
-      sprintf(tmp, "\r\nhall shkipped: %d posnl:%d posnr:%d\r\n", 
-        skippedhall,
-        HallPosn[0], HallPosn[1]); 
-      consoleLog(tmp);
+//      sprintf(tmp, "\r\nhall shkipped: %d posnl:%d posnr:%d\r\n", 
+//        skippedhall,
+//        HallPosn[0], HallPosn[1]); 
+//      consoleLog(tmp);
 #endif
 
       SoftwareSerialReadTimer();

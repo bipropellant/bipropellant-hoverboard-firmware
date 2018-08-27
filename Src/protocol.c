@@ -18,9 +18,12 @@ extern SENSOR_DATA last_sensor_data[2];
 extern volatile int HallPosn[2];
 #endif
 
+extern uint8_t enable; // global variable for motor enable
 extern int speedL;
 extern int speedR;
-
+extern int debug_out;
+extern int sensor_control;
+int speedB = 0;
 ///////////////////////////////////////////////
 
 
@@ -92,7 +95,8 @@ PROTOCOL_STAT s;
 void protocol_send_nack();
 void protocol_send(PROTOCOL_MSG *msg);
 void process_message(PROTOCOL_MSG *msg);
-
+void ascii_process_msg(char *cmd, int len);
+void ascii_byte( unsigned char byte );
 
 ///////////////////////////////////////////////////
 // process incomming serial a byte at a time
@@ -107,7 +111,9 @@ void protocol_byte( unsigned char byte ){
                 s.state = PROTOCOL_STATE_WAIT_LEN;
                 s.CS = 0;
             } else {
-                s.nonsync++;
+                // else process as an 'ASCII' message
+                ascii_byte( byte );
+                //s.nonsync++;
             }
             break;
         case PROTOCOL_STATE_WAIT_LEN:
@@ -129,6 +135,107 @@ void protocol_byte( unsigned char byte ){
             }
             break;
     }
+}
+
+char ascii_cmd[20];
+int ascii_posn = 0;
+
+void ascii_byte( unsigned char byte ){
+    if ((byte == '\r') || (byte == '\n')){
+        softwareserial_Send((unsigned char *) &byte, 1);
+        ascii_process_msg(ascii_cmd, ascii_posn);
+        ascii_posn = 0;
+        byte = '>';
+        softwareserial_Send((unsigned char *) &byte, 1);
+    } else {
+        if (ascii_posn < 20){
+            ascii_cmd[ascii_posn++] = byte;
+            softwareserial_Send((unsigned char *) &byte, 1);
+        } else {
+            byte = '#';
+            softwareserial_Send((unsigned char *) &byte, 1);
+        }
+    }
+}
+
+
+char ascii_out[200];
+
+void ascii_process_msg(char *cmd, int len){
+    if (len == 0){
+        return;
+    }
+    ascii_out[0] = 0;
+
+    switch(cmd[0]){
+        case '?':
+            sprintf(ascii_out, 
+                "Hoverboard Mk1\r\n"\
+                "Cmds:\r\n"\
+                " E -Enabled Debug\r\n"\
+                " D -Disable Debug\r\n"\
+                " S -Enable Sensor control\r\n"\
+                " T -Disable Sensor control\r\n"\
+                " F/B/X -Faster/Slower/Stop\r\n"\
+                " ? -show this\r\n"\
+                );
+            break;
+        case 'D':
+        case 'd':
+            debug_out = 0;
+            sprintf(ascii_out, "Debug now %d\r\n", debug_out);
+            break;
+        case 'E':
+        case 'e':
+            debug_out = 1;
+            sprintf(ascii_out, "Debug now %d\r\n", debug_out);
+            break;
+        case 'S':
+        case 's':
+            sensor_control = 1;
+            sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
+            break;
+        case 'T':
+        case 't':
+            sensor_control = 0;
+            sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
+            break;
+
+        case 'F':
+        case 'f':
+            if (!enable) speedB = 0;
+            speedB += 10;
+            speedL = speedR = speedB;
+            sensor_control = 0;
+            enable = 1;
+            sprintf(ascii_out, "Forward 10 set\r\n");
+            break;
+
+        case 'B':
+        case 'b':
+            if (!enable) speedB = 0;
+            speedB -= 10;
+            speedL = speedR = speedB;
+            sensor_control = 0;
+            enable = 1;
+            sprintf(ascii_out, "Backward 10 set\r\n");
+            break;
+
+        case 'X':
+        case 'x':
+            speedB = 0;
+            speedL = speedR = speedB;
+            sensor_control = 0;
+            enable = 1;
+            sprintf(ascii_out, "Stop set\r\n");
+            break;
+
+        default:
+            sprintf(ascii_out, "Unknown cmd %c\r\n", cmd[0]);
+            break;
+    }
+    softwareserial_Send((unsigned char *) ascii_out, strlen(ascii_out));
+
 }
 
 

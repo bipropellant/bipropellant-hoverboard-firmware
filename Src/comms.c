@@ -20,6 +20,9 @@ extern UART_HandleTypeDef huart2;
 
 volatile uint8_t uart_buf[100];
 volatile int16_t ch_buf[8];
+
+int debug_out = 1;
+
 //volatile char char_buf[300];
 
 void setScopeChannel(uint8_t ch, int16_t val) {
@@ -67,9 +70,11 @@ void consoleScope() {
   #endif
 
   #if defined DEBUG_SERIAL_ASCII && defined DEBUG_SOFTWARE_SERIAL
-    memset(uart_buf, 0, sizeof(uart_buf));
-    sprintf(uart_buf, "1:%i 2:%i 3:%i 4:%i 5:%i 6:%i 7:%i 8:%i\r\n", ch_buf[0], ch_buf[1], ch_buf[2], ch_buf[3], ch_buf[4], ch_buf[5], ch_buf[6], ch_buf[7]);
-    softwareserial_Send(uart_buf, strlen(uart_buf));
+    if (debug_out){
+      memset(uart_buf, 0, sizeof(uart_buf));
+      sprintf(uart_buf, "1:%i 2:%i 3:%i 4:%i 5:%i 6:%i 7:%i 8:%i\r\n", ch_buf[0], ch_buf[1], ch_buf[2], ch_buf[3], ch_buf[4], ch_buf[5], ch_buf[6], ch_buf[7]);
+      softwareserial_Send(uart_buf, strlen(uart_buf));
+    }
   #endif
 
 }
@@ -77,7 +82,9 @@ void consoleScope() {
 void consoleLog(char *message)
 {
     #ifdef DEBUG_SOFTWARE_SERIAL
+    if (debug_out){
       softwareserial_Send((uint8_t *)message, strlen(message));
+    }
     #endif
 
     #if defined DEBUG_SERIAL_SENSOR && defined CONTROL_SENSOR

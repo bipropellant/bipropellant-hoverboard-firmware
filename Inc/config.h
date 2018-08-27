@@ -61,7 +61,7 @@
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
 #define CONTROL_SENSOR
-#define CONTROL_SENSOR_BAUD     9600    // control via usart from GD32 based sensor boards
+#define CONTROL_SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
 //#define CONTROL_SENSOR_BAUD     26300    // reported baudrate for other sensor boards?
 
 // ###### CONTROL VIA RC REMOTE ######
@@ -99,7 +99,7 @@
 #define SOFTWARE_SERIAL_PORT GPIOB
 #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
 #define SOFTWARE_SERIAL_TX_PORT GPIOC
-#define SOFTWARE_SERIAL_BAUD 19200
+#define SOFTWARE_SERIAL_BAUD 9600
 
 // ############################### SERIAL PROTOCOL ###############################
 #define INCLUDE_PROTOCOL
