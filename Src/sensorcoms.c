@@ -233,8 +233,9 @@ void USART_sensor_addTXshort(int port, unsigned short value){
     sensorTXbuffers[port].head = ((sensorTXbuffers[port].head + 1 ) % SENSOR_BUFFER_SIZE);
 }
 
-
-void myIRQ(int port, USART_TypeDef *us)
+//////////////////////////////////////////////////////
+// called from actual IRQ routines
+void USART_sensor_IRQ(int port, USART_TypeDef *us)
 {
     volatile uint32_t *SR = &us->SR;
     volatile uint32_t *SRread = &us->SR;
@@ -261,12 +262,5 @@ void myIRQ(int port, USART_TypeDef *us)
     return;
 }
 
-void USART2_IRQHandler(void){
-    myIRQ(0, USART2);
-}
-
-void USART3_IRQHandler(void){
-    myIRQ(1, USART3);
-}
 
 #endif

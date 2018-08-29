@@ -1,12 +1,78 @@
+/*
+* This file is part of the hoverboard-firmware-hack project.
+*
+* Copyright (C) 2018 Simon Hailes <btsimonh@googlemail.com>
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
 #include "sensorcoms.h"
 #include "protocol.h"
-
-
+#include "hallinterrupts.h"
+#include "softwareserial.h"
+#include "bldc.h"
 
 #ifdef INCLUDE_PROTOCOL
+
+//////////////////////////////////////////////////////////
+// two new protocols are created, and simultaneously active
+// 1. simple ascii protocol
+//  press ?<CR> for a list of commands
+//  this is very suitable for development and playing
+// 2. a protocol with length, checksum, ACK/NACK etc.
+//  this is more suitable for machine control.
+//////////////////////////////////////////////////////////
+//
+// ASCII protocol:
+// this accepts command sup to 10 bytes long terminated with CR.
+// one of these commands (I) can enable an 'immediate' mode.
+// In 'immediate' mode, keypresses cause immediate action;
+// for example, controlling speed, or getting real-time feedback.
+//
+//////////////////////////////////////////////////////////
+//
+// Machine protocol:
+// a very simple protocol, starting 02 (SOM), with length and checksum
+// examples:
+// ack - 02 02 41 BD
+// nack - 02 02 4E B0
+// test - 02 06 54 54 65 73 74 06
+// e.g. for test:
+// 02 - SOM
+// 06 - length = 6
+// 54 - byte0 - 'cmd' 'T'
+// 54 - byte1 - payload for text command - 'T'est
+// 65 - byte2 - 'e'
+// 73 - byte3 - 's'
+// 74 - byte4 - 't'
+// 06 - checksum = (00 - (06+54+54+65+73+74))&0xff = 06,
+// or  can be stated as : (06+54+54+65+73+74+06)&0xff = 0
+//
+// if a message is received with invalid checksum, then nack will be sent.
+// if a message is received complete, it will with be responded to with a 
+// return message, or with the ack message
+//
+// for simplicities sake, we will treat the hoverboard controller as a 
+// slave unit always - i.e. not ask it to send *unsolicited* messages.
+// in this way, it does not need to wait for ack, etc. from the host.
+// if the host gets a bad message, or no response, it can retry.
+//
+//////////////////////////////////////////////////////////
+
+
 
 ///////////////////////////////////////////////
 // extern variables you want to read/write here
@@ -14,22 +80,40 @@
 extern SENSOR_DATA last_sensor_data[2];
 #endif
 
-#ifdef HALL_INTERRUPTS
-extern volatile int HallPosn[2];
-#endif
-
 extern uint8_t enable; // global variable for motor enable
+extern volatile uint32_t timeout; // global variable for timeout
 extern int speedL;
 extern int speedR;
 extern int debug_out;
 extern int sensor_control;
+extern int sensor_stabilise;
+extern int disablepoweroff;
+
 int speedB = 0;
+int steerB = 0;
 ///////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////
+// specify where to send data out of with a function pointer.
+#ifdef SOFTWARE_SERIAL
+int (*send_serial_data)( unsigned char *data, int len ) = softwareserial_Send;
+int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
+#endif
+
+#ifdef DEBUG_SERIAL_USART3
+// need to implement a buffering function here.
+// current DMA method needs attention...
+int nosend( unsigned char *data, int len ){ return 0; };
+int (*send_serial_data)( unsigned char *data, int len ) = nosend;
+int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
+#endif
+/////////////////////////////////////////////////////////////
 
 
 //////////////////////////////////////////////
 // variables and functions in support of parameters here
-
+//
 // e.g. to gather two separate speed variables togther,
 typedef struct tag_SPEEDS{
     int speedl;
@@ -48,6 +132,7 @@ void setspeeds(void){
     speedL = speeds.speedl;
     speedR = speeds.speedr;
 }
+
 
 
 ///////////////////////////////////////////////////
@@ -80,23 +165,47 @@ PARAMSTAT params[] = {
     { 0x01, &last_sensor_data,   sizeof(last_sensor_data),   PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, &HallPosn,           sizeof(HallPosn),           PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x02, &HallData,           sizeof(HallData),           PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
     { 0x03, &speeds,             sizeof(speeds),           PARAM_RW,    getspeeds, NULL, NULL, setspeeds }
 
 };
 
 
-PROTOCOL_STAT s;
 
 
 
-// local functions
+///////////////////////////////////////////////////
+// local functions, not really for external usage
 void protocol_send_nack();
 void protocol_send(PROTOCOL_MSG *msg);
 void process_message(PROTOCOL_MSG *msg);
+int ascii_process_immediate(unsigned char byte);
 void ascii_process_msg(char *cmd, int len);
 void ascii_byte( unsigned char byte );
+
+
+
+///////////////////////////////////////////////////
+// local variables for handling the machine protocol, 
+// not really for external usage
+//
+typedef struct tag_PROTOCOL_STAT {
+    char state;
+    unsigned char CS;
+    unsigned char count;
+    unsigned int nonsync;
+    PROTOCOL_MSG curr_msg;
+} PROTOCOL_STAT;
+PROTOCOL_STAT s;
+
+#define PROTOCOL_STATE_IDLE 0
+#define PROTOCOL_STATE_WAIT_LEN 1
+#define PROTOCOL_STATE_WAIT_END 2
+///////////////////////////////////////////////////
+
+
+
 
 ///////////////////////////////////////////////////
 // process incomming serial a byte at a time
@@ -111,9 +220,11 @@ void protocol_byte( unsigned char byte ){
                 s.state = PROTOCOL_STATE_WAIT_LEN;
                 s.CS = 0;
             } else {
-                // else process as an 'ASCII' message
+                //////////////////////////////////////////////////////
+                // if the byte was NOT SOM (02), then treat it as an 
+                // ascii protocol byte.  BOTH protocol can co-exist
                 ascii_byte( byte );
-                //s.nonsync++;
+                //////////////////////////////////////////////////////
             }
             break;
         case PROTOCOL_STATE_WAIT_LEN:
@@ -129,7 +240,7 @@ void protocol_byte( unsigned char byte ){
                 if (s.CS != 0){
                     protocol_send_nack();
                 } else {
-                    process_message(&s.curr_msg);
+                    process_message(&s.curr_msg);  // this should ack or return a message
                 }
                 s.state = PROTOCOL_STATE_IDLE;
             }
@@ -137,108 +248,317 @@ void protocol_byte( unsigned char byte ){
     }
 }
 
+
+
+///////////////////////////////////////////////////
+// local variables for handling the 'human' protocol, 
+// not really for external usage
+//
 char ascii_cmd[20];
+char ascii_out[512];
 int ascii_posn = 0;
+int enable_immediate = 0;
 
 void ascii_byte( unsigned char byte ){
-    if ((byte == '\r') || (byte == '\n')){
-        softwareserial_Send((unsigned char *) &byte, 1);
-        ascii_process_msg(ascii_cmd, ascii_posn);
-        ascii_posn = 0;
-        byte = '>';
-        softwareserial_Send((unsigned char *) &byte, 1);
-    } else {
-        if (ascii_posn < 20){
-            ascii_cmd[ascii_posn++] = byte;
-            softwareserial_Send((unsigned char *) &byte, 1);
-        } else {
-            byte = '#';
-            softwareserial_Send((unsigned char *) &byte, 1);
-        }
+    int skipchar = 0;
+    // only if no characters buffered, process single keystorkes
+    if (enable_immediate){
+        // returns 1 if char should not be kept in command buffer
+        skipchar = ascii_process_immediate(byte);
     }
+
+    if (!skipchar){
+        // on CR or LF, process gathered messages
+        if ((byte == '\r') || (byte == '\n')){
+            send_serial_data((unsigned char *) &byte, 1);
+            ascii_process_msg(ascii_cmd, ascii_posn);
+            ascii_posn = 0;
+            // send prompt
+            byte = '>';
+        } else {
+            if (ascii_posn < 20){
+                ascii_cmd[ascii_posn++] = byte;
+            } else {
+                byte = '#';
+            }
+        }
+    } else {
+        // no echo for immediate.
+        // send prompt after immediate
+        byte = '>';
+    }
+    // echo or prompt after processing
+    send_serial_data((unsigned char *) &byte, 1);
 }
 
 
-char ascii_out[200];
 
-void ascii_process_msg(char *cmd, int len){
-    if (len == 0){
-        return;
-    }
+/////////////////////////////////////////////
+// single byte commands at start of command 
+// - i.e. only after CR of LF and ascii buffer empty
+int ascii_process_immediate(unsigned char byte){
+    int processed = 0;
     ascii_out[0] = 0;
 
-    switch(cmd[0]){
-        case '?':
-            sprintf(ascii_out, 
-                "Hoverboard Mk1\r\n"\
-                "Cmds:\r\n"\
-                " E -Enabled Debug\r\n"\
-                " D -Disable Debug\r\n"\
-                " S -Enable Sensor control\r\n"\
-                " T -Disable Sensor control\r\n"\
-                " F/B/X -Faster/Slower/Stop\r\n"\
-                " ? -show this\r\n"\
-                );
+    switch(byte){
+        case 'W':
+        case 'w':
+            processed = 1;
+            if (!enable) { speedB = 0; steerB = 0; }
+            speedB += 10;
+            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+
+            sensor_control = 0;
+            enable = 1;
+            timeout = 0;
+            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
             break;
-        case 'D':
-        case 'd':
-            debug_out = 0;
-            sprintf(ascii_out, "Debug now %d\r\n", debug_out);
-            break;
-        case 'E':
-        case 'e':
-            debug_out = 1;
-            sprintf(ascii_out, "Debug now %d\r\n", debug_out);
-            break;
+
         case 'S':
         case 's':
-            sensor_control = 1;
-            sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
-            break;
-        case 'T':
-        case 't':
-            sensor_control = 0;
-            sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
-            break;
-
-        case 'F':
-        case 'f':
-            if (!enable) speedB = 0;
-            speedB += 10;
-            speedL = speedR = speedB;
-            sensor_control = 0;
-            enable = 1;
-            sprintf(ascii_out, "Forward 10 set\r\n");
-            break;
-
-        case 'B':
-        case 'b':
-            if (!enable) speedB = 0;
+            processed = 1;
+            if (!enable) { speedB = 0; steerB = 0; }
             speedB -= 10;
-            speedL = speedR = speedB;
+            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
             sensor_control = 0;
             enable = 1;
-            sprintf(ascii_out, "Backward 10 set\r\n");
+            timeout = 0;
+            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
             break;
+
+        case 'A':
+        case 'a':
+            processed = 1;
+            if (!enable) { speedB = 0; steerB = 0; }
+            steerB -= 10;
+            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+
+            sensor_control = 0;
+            enable = 1;
+            timeout = 0;
+            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+            break;
+
+        case 'D':
+        case 'd':
+            processed = 1;
+            if (!enable) { speedB = 0; steerB = 0; }
+            steerB += 10;
+            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+
+            sensor_control = 0;
+            enable = 1;
+            timeout = 0;
+            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+            break;
+
 
         case 'X':
         case 'x':
-            speedB = 0;
+            processed = 1;
+            speedB = 0; 
+            steerB = 0;
             speedL = speedR = speedB;
             sensor_control = 0;
-            enable = 1;
+            enable = 0;
             sprintf(ascii_out, "Stop set\r\n");
+            break;
+
+        case 'Q':
+        case 'q':
+            processed = 1;
+            enable_immediate = 0;
+            speedB = 0; 
+            steerB = 0;
+            speedL = speedR = speedB;
+            sensor_control = 0;
+            enable = 0;
+            sprintf(ascii_out, "Immediate commands disabled\r\n");
+            break;
+
+        case 'R':
+        case 'r':
+            processed = 1;
+            if (sensor_stabilise <= 0){
+                sensor_stabilise = 5;
+            } else {
+                sensor_stabilise = 0;
+            }
+            sprintf(ascii_out, "Sensor Stabilisation is now %d\r\n", sensor_stabilise);
+            break;
+
+        case 'H':
+        case 'h':
+#ifdef HALL_INTERRUPTS
+            processed = 1;
+            sprintf(ascii_out, 
+                "L: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u\r\n"\
+                "R: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u\r\n",
+                HallData[0].HallPosn, HallData[0].HallPosn_m, HallData[0].HallSpeed, HallData[0].HallSpeed_m_per_s, HallData[0].HallTimeDiff, HallData[0].HallSkipped,
+                HallData[1].HallPosn, HallData[1].HallPosn_m, HallData[1].HallSpeed, HallData[1].HallSpeed_m_per_s, HallData[1].HallTimeDiff, HallData[1].HallSkipped
+            );
+#else
+            sprintf(ascii_out, "Hall Data not available\r\n");
+#endif
+            break;
+
+        case 'C':
+        case 'c':
+            processed = 1;
+            sprintf(ascii_out, 
+                "Bat: %.2fV(%d) Temp:%.1fC(%d)\r\n"
+                "L: Current:%.2fA Avg:%.2fA r1:%d r2:%d\r\n"\
+                "R: Current:%.2fA Avg:%.2fA r1:%d r2:%d\r\n",
+                electrical_measurements.batteryVoltage, electrical_measurements.bat_raw, 
+                electrical_measurements.board_temp_deg_c, electrical_measurements.board_temp_raw,
+                electrical_measurements.motors[0].dcAmps, electrical_measurements.motors[0].dcAmpsAvg, electrical_measurements.motors[0].r1, electrical_measurements.motors[0].r2,
+                electrical_measurements.motors[1].dcAmps, electrical_measurements.motors[1].dcAmpsAvg, electrical_measurements.motors[1].r1, electrical_measurements.motors[1].r2
+            );
+            break;
+
+        case 'G':
+        case 'g':
+            processed = 1;
+            sprintf(ascii_out, 
+                "A:%04X B:%04X C:%04X D:%04X E:%04X\r\n"\
+                "Button: %d Charge:%d\r\n",
+                GPIOA->IDR, GPIOB->IDR, GPIOC->IDR, GPIOD->IDR, GPIOE->IDR,
+                (BUTTON_PORT->IDR & BUTTON_PIN)?1:0,
+                (CHARGER_PORT->IDR & CHARGER_PIN)?1:0
+            );
+            break;
+
+        default:
+            break;
+    }
+    send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
+
+    return processed;
+}
+/////////////////////////////////////////////
+
+
+
+/////////////////////////////////////////////
+// process commands which ended CR or LF
+void ascii_process_msg(char *cmd, int len){
+    ascii_out[0] = 0;
+
+    // skip nuls, observed at startup
+    while (((*cmd) == 0) && (len > 0)){
+        cmd++;
+        len--;
+    }
+
+    if (len == 0){ // makes double prompt if /r/n is sent by terminal
+        //sprintf(ascii_out, "\r\n>");
+        //send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
+        return;
+    }
+
+    switch(cmd[0]){
+        case '?':
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
+                "Hoverboard Mk1\r\n"\
+                "Cmds (press return after):\r\n"\
+                " E -toggle dEbug\r\n"\
+                " B -toggle sensor Board control\r\n"\
+                " P -toggle disablepoweroff\r\n"
+                " I -enable Immediate commands:\r\n"\
+                "   W/S/A/D/X -Faster/Slower/Lefter/Righter/DisableDrive\r\n"\
+                "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n"\
+                " T -send a test message A-ack N-nack T-test\r\n"\
+                " ? -show this\r\n"
+                );
+            send_serial_data_wait(ascii_out, strlen(ascii_out));
+            ascii_out[0] = 0;
+            break;
+        case 'E':
+        case 'e':
+            debug_out ^= 1;
+            sprintf(ascii_out, "Debug now %d\r\n", debug_out);
+            break;
+        case 'B':
+        case 'b':
+            sensor_control ^= 1;
+            sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
+            break;
+
+        case 'P':
+        case 'p':
+            disablepoweroff ^= 1;
+            sprintf(ascii_out, "disablepoweroff now %d\r\n", disablepoweroff);
+            break;
+
+        case 'C':
+        case 'c':
+            ascii_process_immediate('c');
+            // already sent
+            ascii_out[0] = 0;
+            break;
+
+        case 'G':
+        case 'g':
+            ascii_process_immediate('g');
+            // already sent
+            ascii_out[0] = 0;
+            break;
+
+        case 'I':
+        case 'i':
+            enable_immediate = 1;
+            sprintf(ascii_out, "Immediate commands enabled - WASDXQ\r\n>");
+            break;
+
+        case 'T':
+        case 't':
+            if (len < 2){
+                sprintf(ascii_out, "Test command needs A N or T qualifier\r\n");
+            } else {
+                // send a test message in machine protocol
+                switch (cmd[1]){
+                    case 'A':
+                    case 'a':
+                        protocol_send_ack();
+                        break;
+                    case 'N':
+                    case 'n':
+                        protocol_send_nack();
+                        break;
+                    case 'T':
+                    case 't':
+                        protocol_send_test();
+                        break;
+                }
+                // CR before prompt.... after message
+                sprintf(ascii_out, "\r\n", cmd[0]);
+            }
             break;
 
         default:
             sprintf(ascii_out, "Unknown cmd %c\r\n", cmd[0]);
             break;
     }
-    softwareserial_Send((unsigned char *) ascii_out, strlen(ascii_out));
+    send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
+    // prompt
+    sprintf(ascii_out, ">");
+    send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
+
 
 }
+/////////////////////////////////////////////
 
 
+
+
+/////////////////////////////////////////////
+// MACHINE PROTOCOL
+// functions in support of the operation of the machine protocol
+//
 void protocol_send_nack(){
     char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_NACK, 0 };
     protocol_send(tmp);
@@ -249,17 +569,26 @@ void protocol_send_ack(){
     protocol_send(tmp);
 }
 
+void protocol_send_test(){
+    char tmp[] = { PROTOCOL_SOM, 6, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't', 0 };
+    protocol_send(tmp);
+}
+
 
 void protocol_send(PROTOCOL_MSG *msg){
     unsigned char CS = 0;
     unsigned char *src = &msg->len;
-    for (int i = 0; i < msg->len-1; i++){
+    for (int i = 0; i < msg->len; i++){
         CS -= *(src++);
     }
     msg->bytes[msg->len-1] = CS;
-    softwareserial_Send((unsigned char *) msg, msg->len+2);
+    send_serial_data((unsigned char *) msg, msg->len+2);
 }
 
+
+/////////////////////////////////////////////
+// a complete machineprotocl message has been 
+// received without error
 void process_message(PROTOCOL_MSG *msg){
     PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes; 
     switch (bytes->cmd){

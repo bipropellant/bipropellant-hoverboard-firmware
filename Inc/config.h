@@ -89,12 +89,14 @@
 
 // ############################### ENABLE INTERRUPT READING OF HALL SENSORS FOR POSITION ###############################
 #define HALL_INTERRUPTS
+//#define WHEEL_SIZE_INCHES 8.5 - set to your wheelsize to override the default 6.5
 
 
 // ############################### SOFTWARE SERIAL ###############################
 //
 #define SOFTWARE_SERIAL
 #define DEBUG_SOFTWARE_SERIAL
+// there should now be a free choice of serial GPIO pins
 #define SOFTWARE_SERIAL_PIN GPIO_PIN_2
 #define SOFTWARE_SERIAL_PORT GPIOB
 #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9

@@ -3,6 +3,12 @@
 #include "defines.h"
 #include "setup.h"
 #include "config.h"
+#include "bldc.h"
+
+
+volatile ELECTRICAL_PARAMS electrical_measurements;
+
+#define DO_MEASUREMENTS
 
 
 volatile int posl = 0;
@@ -146,6 +152,7 @@ volatile int vel = 0;
 //scan 8 channels with 2ADCs @ 20 clk cycles per sample
 //meaning ~80 ADC clock cycles @ 8MHz until new DMA interrupt =~ 100KHz
 //=640 cpu cycles
+// Careful - easy to use too many!
 void DMA1_Channel1_IRQHandler() {
   DMA1->IFCR = DMA_IFCR_CTCIF1;
   // HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
@@ -163,10 +170,33 @@ void DMA1_Channel1_IRQHandler() {
 
   if (buzzerTimer % 1000 == 0) {  // because you get float rounding errors if it would run every time
     batteryVoltage = batteryVoltage * 0.99 + ((float)adc_buffer.batt1 * ((float)BAT_CALIB_REAL_VOLTAGE / (float)BAT_CALIB_ADC)) * 0.01;
+//#ifdef DO_MEASUREMENTS    
+    electrical_measurements.batteryVoltage = batteryVoltage;
+//#endif    
   }
 
+
+
+  float dclAmps = ((float)abs(adc_buffer.dcl - offsetdcl) * MOTOR_AMP_CONV_DC_AMP);
+  float dcrAmps = ((float)abs(adc_buffer.dcr - offsetdcr) * MOTOR_AMP_CONV_DC_AMP);
+
+  electrical_measurements.motors[0].dcAmps = dclAmps;
+  electrical_measurements.motors[1].dcAmps = dcrAmps;
+
+#ifdef DO_MEASUREMENTS    
+  electrical_measurements.motors[0].dcAmpsAvgAcc += abs(adc_buffer.dcl - offsetdcl);
+  electrical_measurements.motors[1].dcAmpsAvgAcc += abs(adc_buffer.dcl - offsetdcl);
+
+  if (buzzerTimer % 1000 == 500) { // to save CPU time
+    electrical_measurements.motors[0].dcAmpsAvg = electrical_measurements.motors[0].dcAmpsAvgAcc*MOTOR_AMP_CONV_DC_AMP/1000;
+    electrical_measurements.motors[1].dcAmpsAvg = electrical_measurements.motors[1].dcAmpsAvgAcc*MOTOR_AMP_CONV_DC_AMP/1000;
+    electrical_measurements.motors[0].dcAmpsAvgAcc = 0;
+    electrical_measurements.motors[1].dcAmpsAvgAcc = 0;
+  }
+#endif
+
   //disable PWM when current limit is reached (current chopping)
-  if(ABS((adc_buffer.dcl - offsetdcl) * MOTOR_AMP_CONV_DC_AMP) > DC_CUR_LIMIT || timeout > TIMEOUT || enable == 0) {
+  if(dclAmps > DC_CUR_LIMIT || timeout > TIMEOUT || enable == 0) {
     LEFT_TIM->BDTR &= ~TIM_BDTR_MOE;
     //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
   } else {
@@ -174,7 +204,7 @@ void DMA1_Channel1_IRQHandler() {
     //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 0);
   }
 
-  if(ABS((adc_buffer.dcr - offsetdcr) * MOTOR_AMP_CONV_DC_AMP)  > DC_CUR_LIMIT || timeout > TIMEOUT || enable == 0) {
+  if(dcrAmps > DC_CUR_LIMIT || timeout > TIMEOUT || enable == 0) {
     RIGHT_TIM->BDTR &= ~TIM_BDTR_MOE;
   } else {
     RIGHT_TIM->BDTR |= TIM_BDTR_MOE;
@@ -202,7 +232,18 @@ void DMA1_Channel1_IRQHandler() {
   posr += 2;
   posr %= 6;
 
+
   blockPhaseCurrent(posl, adc_buffer.rl1 - offsetrl1, adc_buffer.rl2 - offsetrl2, &curl);
+
+#ifdef DO_MEASUREMENTS    
+  electrical_measurements.motors[0].r1 = adc_buffer.rl1 - offsetrl1;
+  electrical_measurements.motors[0].r2 = adc_buffer.rl2 - offsetrl2;
+  electrical_measurements.motors[0].q  = curl;
+
+  electrical_measurements.motors[1].r1 = adc_buffer.rr1 - offsetrr1;
+  electrical_measurements.motors[1].r2 = adc_buffer.rr2 - offsetrr2;
+  electrical_measurements.motors[1].q  = 0;//curl;
+#endif
 
   //setScopeChannel(2, (adc_buffer.rl1 - offsetrl1) / 8);
   //setScopeChannel(3, (adc_buffer.rl2 - offsetrl2) / 8);

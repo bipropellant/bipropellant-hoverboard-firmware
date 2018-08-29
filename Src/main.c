@@ -27,6 +27,7 @@
 #include "sensorcoms.h"
 #include "flashaccess.h"
 #include "protocol.h"
+#include "bldc.h"
 //#include "hd44780.h"
 
 void SystemClock_Config(void);
@@ -55,13 +56,11 @@ volatile Serialcommand command;
 #ifdef CONTROL_SENSOR
 SENSOR_DATA last_sensor_data[2];
 int sensor_control = 1;
-#endif
+int sensor_stabilise = 0;
 
-
-#ifdef HALL_INTERRUPTS
-volatile unsigned long skippedhall;
-extern volatile int HallPosn[2];
 #endif
+int disablepoweroff = 0;
+
 
 extern volatile unsigned int timerval;
 extern volatile unsigned int ssbits;
@@ -150,6 +149,8 @@ int main(void) {
     UART_Init();
   #endif
 
+  memset(&electrical_measurements, 0, sizeof(electrical_measurements));
+
   HAL_GPIO_WritePin(OFF_PORT, OFF_PIN, 1);
 
   HAL_ADC_Start(&hadc1);
@@ -188,6 +189,7 @@ int main(void) {
   char data_read[2] = {0,0};
   int OnBoard = 0;
   int Center[2] = {0, 0};
+  int Clamp[2] =  {0, 0};
   short calibrationdata[2] = {0, 0};
   int calibrationread = 0;
 
@@ -304,94 +306,122 @@ int main(void) {
     #endif
 
     #ifdef CONTROL_SENSOR
-      // read the last sensor message in the buffer
-      for (int side = 0; side < 2; side++){
-        counts[side] = USART_sensor_rxcount(side);
-        int toflush = counts[side] - 20;
-        if (toflush > 0){
-          // flush data up to last 20 bytes
-          for (int i = 0; i < toflush; i++){
-            USART_sensor_getrx(side);
+      if (!power_button_held){
+        // read the last sensor message in the buffer
+        for (int side = 0; side < 2; side++){
+          counts[side] = USART_sensor_rxcount(side);
+          int toflush = counts[side] - 20;
+          if (toflush > 0){
+            // flush data up to last 20 bytes
+            for (int i = 0; i < toflush; i++){
+              USART_sensor_getrx(side);
+            }
+
+            // read bytes until 0x100 is found with at least 10 bytes read
+            short c;
+            int i = 0;
+            do {
+              c = USART_sensor_getrx(side);
+              rx[side][i++] = c & 0xff;
+            } while ((!(c & 0x100) || (i < 10)) && (i < 20));
+
+            // if we got the end of a frame, copy into data
+            if (c & 0x100){
+              memcpy(&sensor_data[side], &rx[side][i-10], 10);
+              data_read[side] = 1;
+            }
           }
 
-          // read bytes until 0x100 is found with at least 10 bytes read
-          short c;
-          int i = 0;
-          do {
-            c = USART_sensor_getrx(side);
-            rx[side][i++] = c & 0xff;
-          } while ((!(c & 0x100) || (i < 10)) && (i < 20));
-
-          // if we got the end of a frame, copy into data
-          if (c & 0x100){
-            memcpy(&sensor_data[side], &rx[side][i-10], 10);
-            data_read[side] = 1;
+          if (data_read[side]){
+            sprintf(tmp, "\r\n%d: %d %d %2X %d %d", side, 
+              (int)sensor_data[side].Angle, 
+              (int)sensor_data[side].Angle_duplicate, 
+              (int)sensor_data[side].AA_55, 
+              (int)sensor_data[side].Accelleration, 
+              (int)sensor_data[side].Roll);
+            //consoleLog(tmp);
+          } else {
+            sprintf(tmp, "\r\n%d: nodata", side); 
+            //consoleLog(tmp);
           }
         }
 
-        if (data_read[side]){
-          sprintf(tmp, "\r\n%d: %d %d %2X %d %d", side, 
-            (int)sensor_data[side].Angle, 
-            (int)sensor_data[side].Angle_duplicate, 
-            (int)sensor_data[side].AA_55, 
-            (int)sensor_data[side].Accelleration, 
-            (int)sensor_data[side].Roll);
-          //consoleLog(tmp);
+
+        lights[0].colour = SENSOR_COLOUR_RED;
+        lights[1].colour = SENSOR_COLOUR_RED;
+
+        if (sensor_stabilise > 0){
+          Clamp[0] = 30;
+          Clamp[1] = 30;
         } else {
-          sprintf(tmp, "\r\n%d: nodata", side); 
-          //consoleLog(tmp);
+          Clamp[0] = 600;
+          Clamp[1] = 600;
         }
-      }
 
+        for (int i = 0; i < 2; i++){
+          // prevent activation if angle is large (+-17000 -> upside-down)
+          if (
+            ((sensor_data[i].AA_55 == 0x55) || 
+            (sensor_stabilise)) && 
+            (abs(sensor_data[i].Angle) < 10000)){
+            lights[i].colour = SENSOR_COLOUR_GREEN;
+            memcpy(&last_sensor_data[i], &sensor_data[i], sizeof(last_sensor_data[i]));
+            sensor_ok[i] = 3;
+          } else {
+            sensor_ok[i]--;
+            if (sensor_ok[i] < 0)
+              sensor_ok[i] = 0;
+          }
+        }
 
-      lights[0].colour = SENSOR_COLOUR_RED;
-      lights[1].colour = SENSOR_COLOUR_RED;
-
-      for (int i = 0; i < 2; i++){
-        // prevent activation if angle is large (+-17000 -> upside-down)
-        if (sensor_data[i].AA_55 == 0x55 && (abs(sensor_data[i].Angle) < 10000)){
-          lights[i].colour = SENSOR_COLOUR_GREEN;
-          memcpy(&last_sensor_data[i], &sensor_data[i], sizeof(last_sensor_data[i]));
-          sensor_ok[i] = 3;
+        if (electrical_measurements.charging){
+          lights[0].flashcount = 3;
         } else {
-          sensor_ok[i]--;
-          if (sensor_ok[i] < 0)
-            sensor_ok[i] = 0;
-        }
-      }
-
-      if (sensor_ok[0] && sensor_ok[1]){
-
-        if (!OnBoard && !calibrationread){
-          Center[0] = last_sensor_data[0].Angle;
-          Center[1] = last_sensor_data[1].Angle;
-          OnBoard = 1;
+          lights[0].flashcount = 0;
         }
 
-#ifdef USE_CALIBRATION_DATA
-      // it's very difficult to start of on the board unless the center is taken at the time of standing on it.
-        if (calibrationread){
-          Center[0] = calibrationdata[0];
-          Center[1] = calibrationdata[1];
-        }
-#endif
+        if (sensor_ok[0] && sensor_ok[1] && !electrical_measurements.charging){
 
-        if (sensor_control){
-          speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/3, -600, 600);
-          speedR = CLAMP( (last_sensor_data[1].Angle - Center[1])/3, -600, 600);
-          timeout = 0;
-          enable = 1;
-          lights[0].colour = SENSOR_COLOUR_YELLOW;
-          lights[1].colour = SENSOR_COLOUR_YELLOW;
-          inactivity_timeout_counter = 0;
-        }
+          if (!OnBoard && !calibrationread){
+            Center[0] = last_sensor_data[0].Angle;
+            Center[1] = last_sensor_data[1].Angle;
+            OnBoard = 1;
+          }
 
-      } else {
-        OnBoard = 0;
-        if (sensor_control){
-          speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
-          speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
-          enable = 0;
+          if (sensor_stabilise > 0){
+            Center[0] = 0;
+            Center[1] = 0;
+          }
+
+  #ifdef USE_CALIBRATION_DATA
+        // it's very difficult to start of on the board unless the center is taken at the time of standing on it.
+          if (calibrationread){
+            Center[0] = calibrationdata[0];
+            Center[1] = calibrationdata[1];
+          }
+  #endif
+
+          if (sensor_control){
+            speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/3, -Clamp[0], Clamp[0]);
+            speedR = CLAMP( (last_sensor_data[1].Angle - Center[1])/3, -Clamp[1], Clamp[1]);
+            timeout = 0;
+            enable = 1;
+            lights[0].colour = SENSOR_COLOUR_YELLOW;
+            lights[1].colour = SENSOR_COLOUR_YELLOW;
+            inactivity_timeout_counter = 0;
+          }
+
+          if (sensor_stabilise > 0){
+            sensor_stabilise--;
+          }
+
+        } else {
+          OnBoard = 0;
+          if (sensor_control){
+            speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
+            speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
+            enable = 0;
+          }
         }
       }
 
@@ -444,6 +474,11 @@ int main(void) {
       board_temp_adc_filtered = board_temp_adc_filtered * 0.99 + (float)adc_buffer.temp * 0.01;
       board_temp_deg_c = ((float)TEMP_CAL_HIGH_DEG_C - (float)TEMP_CAL_LOW_DEG_C) / ((float)TEMP_CAL_HIGH_ADC - (float)TEMP_CAL_LOW_ADC) * (board_temp_adc_filtered - (float)TEMP_CAL_LOW_ADC) + (float)TEMP_CAL_LOW_DEG_C;
       
+      electrical_measurements.board_temp_raw = adc_buffer.temp;
+      electrical_measurements.board_temp_filtered = board_temp_adc_filtered;
+      electrical_measurements.board_temp_deg_c = board_temp_deg_c;
+      electrical_measurements.charging = !(CHARGER_PORT->IDR & CHARGER_PIN);
+
       // ####### DEBUG SERIAL OUT #######
       #ifdef CONTROL_ADC
         setScopeChannel(0, (int)adc_buffer.l_tx2);  // 1: ADC1
@@ -469,13 +504,6 @@ int main(void) {
         calibrationdata[1]); 
       consoleLog(tmp);
 
-#ifdef HALL_INTERRUPTS
-//      sprintf(tmp, "\r\nhall shkipped: %d posnl:%d posnr:%d\r\n", 
-//        skippedhall,
-//        HallPosn[0], HallPosn[1]); 
-//      consoleLog(tmp);
-#endif
-
       SoftwareSerialReadTimer();
       sprintf(tmp, "\r\ntimer %u\r\n", 
         timerval); 
@@ -493,7 +521,6 @@ int main(void) {
 
 
     if (power_button_held){
-
       // highlight that the button has been helpd for >5s
       if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
         #if defined CONTROL_SENSOR && defined FLASH_STORAGE
@@ -558,7 +585,10 @@ int main(void) {
       inactivity_timeout_counter ++;
     }
     if (inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 60 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) {  // rest of main loop needs maybe 1ms
-      poweroff();
+      if (!disablepoweroff){
+        inactivity_timeout_counter = 0;
+        poweroff();
+      }
     }
   }
 }

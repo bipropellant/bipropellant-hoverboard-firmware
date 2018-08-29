@@ -1,11 +1,34 @@
+/*
+* This file is part of the hoverboard-firmware-hack project.
+*
+* Copyright (C) 2018 Simon Hailes <btsimonh@googlemail.com>
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
 
 #ifdef SOFTWARE_SERIAL
+#include "softwareserial.h"
 
 #define SOFTWARE_SERIAL_RX_TIMER_FREQ (SOFTWARE_SERIAL_BAUD*4)
 #define SOFTWARE_SERIAL_TX_TIMER_FREQ (SOFTWARE_SERIAL_BAUD)
+
+// assume 10 bit
+#define SOFTWARE_SERIAL_MS_PER_BYTE (1000.0/((float)SOFTWARE_SERIAL_BAUD/10.0))
+
 
 TIM_HandleTypeDef softwareserialtimer;
 TIM_HandleTypeDef softwareserialtimerTX;
@@ -55,7 +78,7 @@ void SoftwareSerialInit(void){
   GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING_FALLING;
   HAL_GPIO_Init(SOFTWARE_SERIAL_PORT, &GPIO_InitStruct);
 
-
+  
   // setup TIM2:
   __HAL_RCC_TIM2_CLK_ENABLE();
   softwareserialtimer.Instance = TIM2;
@@ -100,6 +123,10 @@ void SoftwareSerialInit(void){
 
 }
 
+
+//////////////////////////////////////////////////////////
+// get a single character if available.
+// return -1 if none.
 short softwareserial_getrx(int port){
     short t = -1;
     if (softwareserialRXbuffer.head != softwareserialRXbuffer.tail){
@@ -109,6 +136,8 @@ short softwareserial_getrx(int port){
     return t;
 }
 
+//////////////////////////////////////////////////////////
+// put a single character if room in output buffer
 void softwareserial_puttx(unsigned char value){
     int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
     if (count < 0) 
@@ -122,6 +151,9 @@ void softwareserial_puttx(unsigned char value){
     softwareserialTXbuffer.head = ((softwareserialTXbuffer.head + 1 ) % SOFTWARE_SERIAL_BUFFER_SIZE);
 }
 
+//////////////////////////////////////////////////////////
+// copy a buffer of data to the output buffer
+// return length, or 0 if it won't fit
 int softwareserial_Send(unsigned char *data, int len){
     int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
     if (count < 0) 
@@ -129,25 +161,55 @@ int softwareserial_Send(unsigned char *data, int len){
 
     if (count >= SOFTWARE_SERIAL_BUFFER_SIZE-2){
         softwareserialTXbuffer.overflow++;
-        return;
+        return 0;
     }
 
     for (int i = 0; i < len; i++){
         softwareserial_puttx( data[i] );
     }
-    return 1;
+    return len;
+}
+
+//////////////////////////////////////////////////////////
+// copy a buffer of data to the output buffer in chunks
+// waiting if necessary for the data to leave so there is room
+// use sparingly as this will pause main loop!!!
+// used in 'protocol' for long strings, like '?' response
+int softwareserial_Send_Wait(unsigned char *data, int len){
+    int orglen = len;
+    while (len){
+        int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
+        if (count < 0) 
+            count += SOFTWARE_SERIAL_BUFFER_SIZE;
+
+        int avail = (SOFTWARE_SERIAL_BUFFER_SIZE-3) - count;
+
+        int sendlen = len;
+        if (sendlen > avail){
+            sendlen = avail;
+        }
+        softwareserial_Send(data, sendlen);
+        len -= sendlen;
+        data += sendlen;
+
+        if (len > 0){
+            // wait for an appropriate period
+            float delay_ms = (len > sendlen)? sendlen:len;
+            delay_ms *= SOFTWARE_SERIAL_MS_PER_BYTE;
+            HAL_Delay((int)delay_ms + 2); //delay in ms, plus 2
+        }
+    }
+
+    return orglen;
 }
 
 
+
 // interrupt on rising or falling edge of serial....
-void EXTI2_IRQHandler(void){
+void softwareserialRXInterrupt(void){
     char value = (SOFTWARE_SERIAL_PORT->IDR & SOFTWARE_SERIAL_PIN)?1:0;
     unsigned int time = softwareserialtimer.Instance->CNT;
 
-    if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_2) != RESET) {
-        /* Clear the EXTI line 8 pending bit */
-        __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_2);
-    }
 
     timerval = time;
 
@@ -192,7 +254,6 @@ void EXTI2_IRQHandler(void){
     softwareserialRXbuffer.lastvalue = value;
     softwareserialRXbuffer.lasttime = time;
 }
-
 
 
 #ifdef DOTX

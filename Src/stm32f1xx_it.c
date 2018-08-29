@@ -35,6 +35,8 @@
 #include "stm32f1xx.h"
 #include "stm32f1xx_it.h"
 #include "config.h"
+#include "hallinterrupts.h"
+
 
 extern DMA_HandleTypeDef hdma_i2c2_rx;
 extern DMA_HandleTypeDef hdma_i2c2_tx;
@@ -218,13 +220,199 @@ void DMA1_Channel5_IRQHandler(void)
 }
 #endif
 
-#ifdef CONTROL_PPM
+
+
+/////////////////////////////////////////
+// EXTI interrupts - used for HallInterrupt, Softwarewareserial, and PWM
+
+void EXTI0_IRQHandler(void)
+{
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_0);
+#ifdef SOFTWARE_SERIAL
+    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_0)
+      softwareserialRXInterrupt();
+#endif
+}
+
+void EXTI1_IRQHandler(void)
+{
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_1);
+#ifdef SOFTWARE_SERIAL
+    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_1)
+      softwareserialRXInterrupt();
+#endif
+}
+
+void EXTI2_IRQHandler(void)
+{
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_2);
+#ifdef SOFTWARE_SERIAL
+    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_2)
+      softwareserialRXInterrupt();
+#endif
+}
+
 void EXTI3_IRQHandler(void)
 {
+#ifdef CONTROL_PPM
     PPM_ISR_Callback();
+#endif
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_3);
+#ifdef SOFTWARE_SERIAL
+    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_3)
+      softwareserialRXInterrupt();
+#endif
+}
+
+void EXTI4_IRQHandler(void)
+{
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_4);
+#ifdef SOFTWARE_SERIAL
+    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_4)
+      softwareserialRXInterrupt();
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////
+// actual IRQ for LEFT pins 5,6,7
+void EXTI9_5_IRQHandler(void)
+{
+  unsigned long triggered = 0;
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_9) != RESET)
+  {
+    /* Clear the EXTI line 8 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_9);
+    triggered |= GPIO_PIN_9;
+  }
+  
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_8) != RESET)
+  {
+    /* Clear the EXTI line 9 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_8);
+    triggered |= GPIO_PIN_9;
+  }
+
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_7) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+    triggered |= GPIO_PIN_7;
+  }
+
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_6) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_6);
+    triggered |= GPIO_PIN_6;
+  }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_5) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_5);
+    triggered |= GPIO_PIN_5;
+  }
+ 
+#ifdef HALL_INTERRUPTS
+  if (triggered & HALL_PIN_MASK)
+    HallInterruptsInterrupt();
+#endif
+
+// shared interrupt for these pins, depending on where the sfotware serial pin is
+#ifdef SOFTWARE_SERIAL
+  if (triggered & SOFTWARE_SERIAL_PIN){
+      softwareserialRXInterrupt();
+  }
+#endif
+} 
+
+/////////////////////////////////////////////////////////////////////
+// actual IRQ for RIGHT pins 10, 11, 12
+void EXTI15_10_IRQHandler(void)
+{
+  unsigned long triggered = 0;
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
+  {
+    /* Clear the EXTI line 8 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
+    triggered |= GPIO_PIN_15;
+  }
+  
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_14) != RESET)
+  {
+    /* Clear the EXTI line 9 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_14);
+    triggered |= GPIO_PIN_14;
+  }
+
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_13) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_13);
+    triggered |= GPIO_PIN_13;
+  }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_12) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_12);
+    triggered |= GPIO_PIN_12;
+  }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_11) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_11);
+    triggered |= GPIO_PIN_11;
+  }
+  if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_10) != RESET)
+  {
+    /* Clear the EXTI line 13 pending bit */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_10);
+    triggered |= GPIO_PIN_10;
+  }
+
+#ifdef HALL_INTERRUPTS
+  if (triggered & HALL_PIN_MASK)
+    HallInterruptsInterrupt();
+#endif
+// shared interrupt for these pins, depending on where the sfotware serial pin is
+#ifdef SOFTWARE_SERIAL
+  if (triggered & SOFTWARE_SERIAL_PIN){
+      softwareserialRXInterrupt();
+  }
+#endif
+
+} 
+// end EXTI
+/////////////////////////////////////////
+
+
+/////////////////////////////////////////
+// timer interrupts
+
+// 
+// TIM2 is used in softwareserial, but without interrupts.
+// void TIM3_IRQHandler(void) - defined in softwareserial.c
+// void TIM4_IRQHandler(void) - defined in hallinterrupts.c
+//
+
+// end timer interrupts
+/////////////////////////////////////////
+
+
+/////////////////////////////////////////
+// UART interrupts
+
+// used to read original sensors - calls into sensorcoms.c
+#ifdef CONTROL_SENSOR
+void USART2_IRQHandler(void){
+    USART_sensor_IRQ(0, USART2);
+}
+
+void USART3_IRQHandler(void){
+    USART_sensor_IRQ(1, USART3);
 }
 #endif
+//
+/////////////////////////////////////////
 
 #ifdef CONTROL_SERIAL_USART2
 void DMA1_Channel6_IRQHandler(void)

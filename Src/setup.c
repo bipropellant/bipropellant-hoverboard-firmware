@@ -153,6 +153,7 @@ void UART_Init() {
   DMA1_Channel2->CCR   = DMA_CCR_MINC | DMA_CCR_DIR;
   DMA1->IFCR           = DMA_IFCR_CTCIF2 | DMA_IFCR_CHTIF2 | DMA_IFCR_CGIF2;
 }
+
 #endif
 
 #ifdef DEBUG_SERIAL_USART2
@@ -342,7 +343,9 @@ void MX_GPIO_Init(void) {
 
   GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pin = CHARGER_PIN;
+  GPIO_InitStruct.Pull  = GPIO_PULLUP;
   HAL_GPIO_Init(CHARGER_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
 
   GPIO_InitStruct.Pin = BUTTON_PIN;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
