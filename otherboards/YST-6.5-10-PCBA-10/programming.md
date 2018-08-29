@@ -35,4 +35,10 @@ both should work.......
 (check diagnostic output if configured)
 
 
+On linux (raspberian/debian), installing openocd from apt, I use:
+
+openocd -f /usr/share/openocd/scripts/interface/stlink-v2.cfg -f /usr/share/openocd/scripts/target/stm32f1x.cfg -c "program firmware.bin 0x08000000" -c "halt 100" -c "reset"
+
+to flash.  My Rpi is powered from the hoverboard, so I have to hold the power button until the board is restarted, else it powers off mid flash!.
+
 
