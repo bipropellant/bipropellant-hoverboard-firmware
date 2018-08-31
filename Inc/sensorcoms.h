@@ -32,7 +32,18 @@
 
 
 
-#ifdef CONTROL_SENSOR
+#ifdef READ_SENSOR
+
+/////////////////////////////////////////////////////////
+// functions to use.
+void sensor_USART_init();
+void sensor_read_data();
+int sensor_get_speeds(int16_t *speedL, int16_t *speedR);
+void sensor_set_flash(int side, int count);
+void sensor_set_colour(int side, int colour);
+void sensor_send_lights();
+
+
 
 #pragma pack(push, 1)
 
@@ -46,9 +57,10 @@ typedef struct tag_sensor_data{
   short Roll;
   unsigned char header_00; // this byte gets 0x100 (9 bit serial)
 
-
   // not included in message:
-  int sensor_ok;
+  int sensor_ok; // set to 10 when 55, decremented if not
+  int read_timeout;
+  short Center;
 } SENSOR_DATA;
 
 // bytes send to sensor.
@@ -64,6 +76,8 @@ typedef struct tag_sensor_lights {
 
 #pragma pack(pop)
 
+extern SENSOR_DATA sensor_data[2];
+
 
 // bit masks for colour
 #define SENSOR_COLOUR_OFF 0x0 // headlamp is on always?
@@ -75,9 +89,8 @@ typedef struct tag_sensor_lights {
 #define SENSOR_COLOUR_YELLOW (SENSOR_COLOUR_RED | SENSOR_COLOUR_GREEN)
 
 
-/////////////////////////////////////////////////////////
-// functions to use.
-void USART_init_sensor_comms();
+
+
 int  USART_sensorSend(int port, unsigned char *data, int len, int startframe);
 short USART_sensor_getrx(int port);
 int USART_sensor_rxcount(int port);
@@ -99,7 +112,10 @@ void USART2_IRQHandler(void);
 void USART3_IRQHandler(void);
 /////////////////////////////////////////////////////////
 
-#else // end if CONTROL_SENSOR
+
+#define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+
+#else // end if READ_SENSOR
 #endif
 
 #endif

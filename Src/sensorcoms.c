@@ -1,6 +1,4 @@
 #include "stm32f1xx_hal.h"
-#include "defines.h"
-#include "setup.h"
 #include "sensorcoms.h"
 #include "config.h"
 #include "stdio.h"
@@ -14,10 +12,17 @@
 // and uses 9 bit serial.
 /////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef CONTROL_SENSOR
+#ifdef READ_SENSOR
 
 UART_HandleTypeDef sensoruart2;
 UART_HandleTypeDef sensoruart3;
+
+////////////////////////////////////////////////////////////////
+// code to read and interpret sensors
+SENSOR_DATA sensor_data[2];
+SENSOR_LIGHTS sensorlights[2];
+
+SENSOR_LIGHTS last_sensorlights[2];
 
 // un comment to run 8 bit with non original sensor boards ?
 //#define SENSOR8BIT
@@ -42,7 +47,7 @@ volatile SENSOR_BUFFER sensorRXbuffers[2];
 void USART_init_sensor_port_USART2(){
     memset(&sensoruart2, 0, sizeof(sensoruart2));
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_DMA1_CLK_ENABLE();
+    //__HAL_RCC_DMA1_CLK_ENABLE();
     __HAL_RCC_USART2_CLK_ENABLE();
 
     sensoruart2.Instance = USART2;
@@ -125,12 +130,16 @@ void USART_init_sensor_port_USART3(){
     __HAL_UART_ENABLE_IT(&sensoruart3, UART_IT_RXNE);
 }
 
-void USART_init_sensor_comms(){
-  memset(sensorTXbuffers, 0, sizeof(sensorTXbuffers));
-  memset(sensorRXbuffers, 0, sizeof(sensorRXbuffers));
+void sensor_USART_init(){
+  memset((void *)sensorTXbuffers, 0, sizeof(sensorTXbuffers));
+  memset((void *)sensorRXbuffers, 0, sizeof(sensorRXbuffers));
+  memset((void *)sensorlights, 0, sizeof(sensorlights));
+  memset((void *)sensor_data, 0, sizeof(sensor_data));
+
 
   USART_init_sensor_port_USART2();
   USART_init_sensor_port_USART3();
+
 }
 
 ///////////////////////////
@@ -260,6 +269,108 @@ void USART_sensor_IRQ(int port, USART_TypeDef *us)
     }
 
     return;
+}
+
+short rx2[2][20];
+int rx2posn[2];
+
+void sensor_read_data(){
+    // read the last sensor message in the buffer
+    int counts[2];
+    unsigned char rx[2][20];
+    for (int side = 0; side < 2; side++){
+        counts[side] = USART_sensor_rxcount(side);
+        int toflush = counts[side] - 20;
+        // flush data up to last 20 bytes
+        for (int i = 0; i < toflush; i++){
+            USART_sensor_getrx(side);
+            counts[side]--;
+        }
+
+        short c = 0;
+        int i = 0;
+        if (counts[side] >= 20){
+            // read bytes until 0x100 is found with at least 10 bytes read
+            do {
+                c = USART_sensor_getrx(side);
+                if (c < 0) break;
+                rx2[side][i] = c;
+                rx[side][i++] = c & 0xff;
+            } while ((!(c & 0x100) || (i < 10)) && (i < 20));
+            rx2posn[side] = i;
+        }
+
+
+        // if we got the end of a frame, copy into data
+        if ((c & 0x100) && (i >= 10)){
+            unsigned char orgsw = sensor_data[side].AA_55;
+            memcpy(&sensor_data[side], &rx[side][i-10], 10);
+            sensor_data[side].read_timeout = 10;
+            
+            // if we just stepped on
+            if ((sensor_data[side].AA_55 == 0x55) && (orgsw == 0xAA)){
+                sensor_data[side].Center = sensor_data[side].Angle;
+                sensor_data[side].sensor_ok = 10;
+            }
+            if (sensor_data[side].AA_55 == 0xAA){
+                if (sensor_data[side].sensor_ok > 0){
+                    sensor_data[side].sensor_ok--;
+                }
+            }
+        } else {
+            if (sensor_data[side].read_timeout > 0){
+                sensor_data[side].read_timeout--;
+            }
+            if (sensor_data[side].sensor_ok > 0){
+                sensor_data[side].sensor_ok--;
+            }
+        }
+    }
+}
+
+
+int sensor_get_speeds(int16_t *speedL, int16_t *speedR){
+	if (sensor_data[0].read_timeout && sensor_data[1].read_timeout){
+		if ((sensor_data[0].AA_55 == 0x55) && (sensor_data[0].AA_55 == 0x55)){
+            if (speedL){
+                int angle = (sensor_data[0].Angle - sensor_data[0].Center)/100;
+                *speedL = CLAMP( angle , -10, 10);
+            }
+            if (speedR){
+                int angle = (sensor_data[0].Angle - sensor_data[0].Center)/100;
+                *speedR = CLAMP( angle , -10, 10);
+            }
+            return 1;
+        }
+	}
+    if (speedL){
+        *speedL = 0;
+    }
+    if (speedR){
+        *speedR = 0;
+    }
+    return 0;
+}
+
+
+void sensor_set_flash(int side, int count){
+    sensorlights[side].flashcount = count;
+}
+void sensor_set_colour(int side, int colour){
+    sensorlights[side].colour = colour;
+}
+
+
+void sensor_send_lights(){
+    if (memcmp(last_sensorlights, sensorlights, sizeof(sensorlights))){
+        // send twice to make sure each side gets it.
+        // if we sent diagnositc data, it seems to need this.
+        USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
+        USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
+        USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
+        USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
+        memcpy(last_sensorlights, sensorlights, sizeof(sensorlights));
+    }
 }
 
 

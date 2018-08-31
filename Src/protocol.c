@@ -82,8 +82,11 @@ extern SENSOR_DATA sensor_data[2];
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
-extern int speedL;
-extern int speedR;
+extern int speeds[2];
+extern int dspeeds[2];
+
+
+
 extern int debug_out;
 extern int sensor_control;
 extern int sensor_stabilise;
@@ -98,7 +101,7 @@ int speedB = 0;
 int steerB = 0;
 
 int positional_control = 0;
-float wanted_posn_m[2] = {0,0};
+int wanted_posn_mm[2] = {0,0};
 ///////////////////////////////////////////////
 
 
@@ -127,18 +130,18 @@ typedef struct tag_SPEEDS{
     int speedl;
     int speedr;
 } SPEEDS;
-SPEEDS speeds = {0,0};
+SPEEDS speedsx = {0,0};
 
 // before read we call this...
 void getspeeds(void){
-    speeds.speedl = speedL;
-    speeds.speedr = speedR;
+    speedsx.speedl = speeds[0];
+    speedsx.speedr = speeds[1];
 }
 
 // after write we call this...
 void setspeeds(void){
-    speedL = speeds.speedl;
-    speedR = speeds.speedr;
+    speeds[0] = speedsx.speedl;
+    speeds[1] = speedsx.speedr;
 }
 
 
@@ -317,19 +320,26 @@ int ascii_process_immediate(unsigned char byte){
         case 'w':
             processed = 1;
             if (!enable) { speedB = 0; steerB = 0; }
-            sensor_control = 0;
+            if (!sensor_stabilise)
+                sensor_control = 0;
             enable = 1;
             timeout = 0;
 
             if (positional_control){
-                wanted_posn_m[0] += (float)dir * 0.1;
-                wanted_posn_m[1] += (float)dir * 0.1;
-                sprintf(ascii_out, "wanted_posn now %.2fm %.2fm\r\n", wanted_posn_m[0], wanted_posn_m[1]);
+                wanted_posn_mm[0] += dir * 100;
+                wanted_posn_mm[1] += dir * 100;
+                sprintf(ascii_out, "wanted_posn now %dmm %dmm\r\n", wanted_posn_mm[0], wanted_posn_mm[1]);
             } else {
                 speedB += 10*dir;
-                speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-                speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+                if (sensor_stabilise){
+                    dspeeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    dspeeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, dspeedL %d, dspeedR %d\r\n", speedB, steerB, dspeeds[0], dspeeds[1]);
+                } else {
+                    speeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    speeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speeds[0], speeds[1]);
+                }
             }
             break;
 
@@ -340,18 +350,25 @@ int ascii_process_immediate(unsigned char byte){
         case 'd':
             processed = 1;
             if (!enable) { speedB = 0; steerB = 0; }
-            sensor_control = 0;
+            if (!sensor_stabilise)
+                sensor_control = 0;
             enable = 1;
             timeout = 0;
             if (positional_control){
-                wanted_posn_m[0] += (float)dir * 0.1;
-                wanted_posn_m[1] -= (float)dir * 0.1;
-                sprintf(ascii_out, "wanted_posn now %.2fm %.2fm\r\n", wanted_posn_m[0], wanted_posn_m[1]);
+                wanted_posn_mm[0] += dir * 100;
+                wanted_posn_mm[1] -= dir * 100;
+                sprintf(ascii_out, "wanted_posn now %dmm %dmm\r\n", wanted_posn_mm[0], wanted_posn_mm[1]);
             } else {
-                steerB -= 10*dir;
-                speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-                speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+                steerB += 10*dir;
+                if (sensor_stabilise){
+                    dspeeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    dspeeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, dspeedL %d, dspeedR %d\r\n", speedB, steerB, dspeeds[0], dspeeds[1]);
+                } else {
+                    speeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    speeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speeds[0], speeds[1]);
+                }
             }
             break;
 
@@ -360,7 +377,8 @@ int ascii_process_immediate(unsigned char byte){
             processed = 1;
             speedB = 0; 
             steerB = 0;
-            speedL = speedR = speedB;
+            speeds[0] = speeds[1] = speedB;
+            dspeeds[0] = dspeeds[1] = speedB;
             sensor_control = 0;
             enable = 0;
             sprintf(ascii_out, "Stop set\r\n");
@@ -372,7 +390,8 @@ int ascii_process_immediate(unsigned char byte){
             enable_immediate = 0;
             speedB = 0; 
             steerB = 0;
-            speedL = speedR = speedB;
+            speeds[0] = speeds[1] = speedB;
+            dspeeds[0] = dspeeds[1] = speedB;
             sensor_control = 0;
             enable = 0;
             sprintf(ascii_out, "Immediate commands disabled\r\n");
@@ -381,11 +400,7 @@ int ascii_process_immediate(unsigned char byte){
         case 'R':
         case 'r':
             processed = 1;
-            if (sensor_stabilise <= 0){
-                sensor_stabilise = 5;
-            } else {
-                sensor_stabilise = 0;
-            }
+            sensor_stabilise ^= 1;
             sprintf(ascii_out, "Sensor Stabilisation is now %d\r\n", sensor_stabilise);
             break;
 
@@ -394,10 +409,10 @@ int ascii_process_immediate(unsigned char byte){
 #ifdef HALL_INTERRUPTS
             processed = 1;
             sprintf(ascii_out, 
-                "L: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u Dma:%d\r\n"\
-                "R: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u Dma:%d\r\n",
-                HallData[0].HallPosn, HallData[0].HallPosn_m, HallData[0].HallSpeed, HallData[0].HallSpeed_m_per_s, HallData[0].HallTimeDiff, HallData[0].HallSkipped, local_hall_params[0].dmacount,
-                HallData[1].HallPosn, HallData[1].HallPosn_m, HallData[1].HallSpeed, HallData[1].HallSpeed_m_per_s, HallData[1].HallTimeDiff, HallData[1].HallSkipped, local_hall_params[1].dmacount
+                "L: P:%d(%dmm) S:%d(%dmm/s) dT:%u Skip:%u Dma:%d\r\n"\
+                "R: P:%d(%dmm) S:%d(%dmm/s) dT:%u Skip:%u Dma:%d\r\n",
+                HallData[0].HallPosn, HallData[0].HallPosn_mm, HallData[0].HallSpeed, HallData[0].HallSpeed_mm_per_s, HallData[0].HallTimeDiff, HallData[0].HallSkipped, local_hall_params[0].dmacount,
+                HallData[1].HallPosn, HallData[1].HallPosn_mm, HallData[1].HallSpeed, HallData[1].HallSpeed_mm_per_s, HallData[1].HallTimeDiff, HallData[1].HallSkipped, local_hall_params[1].dmacount
             );
 #else
             sprintf(ascii_out, "Hall Data not available\r\n");
@@ -449,8 +464,8 @@ int ascii_process_immediate(unsigned char byte){
         case 'o':
             positional_control ^= 1;
             if (positional_control){
-                wanted_posn_m[0] = HallData[0].HallPosn_m;
-                wanted_posn_m[1] = HallData[1].HallPosn_m;
+                wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+                wanted_posn_mm[1] = HallData[1].HallPosn_mm;
             }
             sprintf(ascii_out, "positional control now %d\r\n", positional_control);
             break;

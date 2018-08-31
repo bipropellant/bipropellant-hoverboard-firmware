@@ -127,7 +127,7 @@ void SoftwareSerialInit(void){
 //////////////////////////////////////////////////////////
 // get a single character if available.
 // return -1 if none.
-short softwareserial_getrx(int port){
+short softwareserial_getrx(){
     short t = -1;
     if (softwareserialRXbuffer.head != softwareserialRXbuffer.tail){
         t = softwareserialRXbuffer.buff[softwareserialRXbuffer.tail];

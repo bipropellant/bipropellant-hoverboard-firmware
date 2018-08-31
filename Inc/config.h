@@ -60,6 +60,7 @@
 
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
+#define READ_SENSOR
 #define CONTROL_SENSOR
 #define CONTROL_SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
 //#define CONTROL_SENSOR_BAUD     26300    // reported baudrate for other sensor boards?
@@ -127,12 +128,12 @@
 
 //Turbo boost at high speeds while button1 is pressed:
 //#define ADDITIONAL_CODE \
-if (button1 && speedR > 700) { /* field weakening at high speeds */ \
-  weakl = cmd1 - 700; /* weak should never exceed 400 or 450 MAX!! */ \
-  weakr = cmd1 - 700; } \
-else { \
-  weakl = 0; \
-  weakr = 0; }
+//if (button1 && speedR > 700) { /* field weakening at high speeds */ \
+//  weakl = cmd1 - 700; /* weak should never exceed 400 or 450 MAX!! */ \
+//  weakr = cmd1 - 700; } \
+//else { \
+//  weakl = 0; \
+//  weakr = 0; }
 
 // ###### SIMPLE BOBBYCAR ######
 // for better bobbycar code see: https://github.com/larsmm/hoverboard-firmware-hack-bbcar

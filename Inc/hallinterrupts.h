@@ -41,12 +41,12 @@
 // one for each wheel
 typedef struct tag_HALL_DATA_STRUCT{
     int HallPosn; // 90 per revolution
-    float HallSpeed; // speed part calibrated to speed demand value
+    int HallSpeed; // speed part calibrated to speed demand value
 
     float HallPosnMultiplier; // m per hall segment
 
-    float HallPosn_m; // posn in m
-    float HallSpeed_m_per_s; // speed in m/s
+    int HallPosn_mm; // posn in m
+    int HallSpeed_mm_per_s; // speed in m/s
 
     unsigned int HallTimeDiff;
     unsigned long HallSkipped;
@@ -72,9 +72,9 @@ void HallInterruptReset();
 typedef struct tag_HALL_POSN {
     struct {
         int HallPosn; // 90 per revolution
-        float HallSpeed; // speed part calibrated to speed demand value
-        float HallPosn_m; // posn in m
-        float HallSpeed_m_per_s; // speed in m/s
+        int HallSpeed; // speed part calibrated to speed demand value
+        int HallPosn_mm; // posn in m
+        int HallSpeed_mm_per_s; // speed in m/s
         unsigned long HallSkipped;
     } wheel[2];
 } HALL_POSN;

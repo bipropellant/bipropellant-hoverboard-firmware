@@ -43,6 +43,7 @@ const uint8_t hall_to_pos[8] = {
     0,
 };
 
+/*
 static const float DUTY_SINUSOIDAL[6][16]= {
 		{0.86328125, 0.89453125, 0.921875, 0.9453125, 0.96484375, 0.9765625, 0.98828125, 0.99609375,	0.99609375, 0.99609375, 0.98828125, 0.98046875, 0.96484375, 0.9453125, 0.92578125, 0.8984375},
 		{0.8671875, 0.890625, 0.91796875, 0.94140625, 0.9609375, 0.9765625, 0.98828125, 0.99609375,	0.99609375, 0.99609375, 0.9921875, 0.98046875, 0.96484375, 0.94921875, 0.92578125, 0.8984375},
@@ -51,6 +52,7 @@ static const float DUTY_SINUSOIDAL[6][16]= {
 		{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
 		{0.0078125, 0.07421875, 0.13671875, 0.203125, 0.265625, 0.328125, 0.38671875, 0.44921875,0.49609375, 0.5546875, 0.60546875, 0.65625, 0.703125, 0.75, 0.7890625, 0.828125}
 };
+*/
 
 static const int DUTY_SINUSOIDAL_INT[6][16]= {
 		{86, 89, 92, 95, 96, 98, 99, 100,	100, 100, 99, 98, 96, 95, 93, 90},
@@ -189,7 +191,7 @@ void DMA1_Channel1_IRQHandler() {
   __disable_irq(); // but we want both values at the same time, without interferance
   unsigned long time = h_timer_hall.Instance->CNT;
   long long timerwraps_copy = timerwraps;
-  char hall[2];
+  unsigned char hall[2];
   hall[0] = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
   hall[1] = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
   __enable_irq();
@@ -238,8 +240,8 @@ void DMA1_Channel1_IRQHandler() {
 //#endif    
   }
 
-  float dclAmps = ((float)abs(adc_buffer.dcl - offsetdcl) * MOTOR_AMP_CONV_DC_AMP);
-  float dcrAmps = ((float)abs(adc_buffer.dcr - offsetdcr) * MOTOR_AMP_CONV_DC_AMP);
+  float dclAmps = ((float)ABS(adc_buffer.dcl - offsetdcl) * MOTOR_AMP_CONV_DC_AMP);
+  float dcrAmps = ((float)ABS(adc_buffer.dcr - offsetdcr) * MOTOR_AMP_CONV_DC_AMP);
 
   electrical_measurements.motors[0].dcAmps = dclAmps;
   electrical_measurements.motors[1].dcAmps = dcrAmps;

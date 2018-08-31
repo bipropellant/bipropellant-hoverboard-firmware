@@ -21,6 +21,7 @@
 #include "defines.h"
 #include "config.h"
 #include "hallinterrupts.h"
+#include <memory.h>
 
 #ifdef HALL_INTERRUPTS
 
@@ -160,14 +161,14 @@ void HallInterruptReadPosn( HALL_POSN *p, int Reset ){
     __enable_irq();
     for (int i = 0; i < 2; i++){
         p->wheel[i].HallPosn = HallData[i].HallPosn;
-        p->wheel[i].HallPosn_m = HallData[i].HallPosn_m;
+        p->wheel[i].HallPosn_mm = HallData[i].HallPosn_mm;
         p->wheel[i].HallSpeed = HallData[i].HallSpeed;
-        p->wheel[i].HallSpeed_m_per_s = HallData[i].HallSpeed_m_per_s;
+        p->wheel[i].HallSpeed_mm_per_s = HallData[i].HallSpeed_mm_per_s;
         p->wheel[i].HallSkipped = HallData[i].HallSkipped;
 
         if (Reset){
             HallData[i].HallPosn = 0;
-            HallData[i].HallPosn_m = 0;
+            HallData[i].HallPosn_mm = 0;
         }
     }
     HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
@@ -225,18 +226,18 @@ void HallInterruptsInterrupt(void){
                     local_hall_params[i].direction;
 
                 HallData[i].HallPosn = HallData[i].HallPosn + local_hall_params[i].incr;
-                HallData[i].HallPosn_m = ((float)HallData[i].HallPosn)*HallData[i].HallPosnMultiplier;
+                HallData[i].HallPosn_mm = (int)((float)HallData[i].HallPosn)*HallData[i].HallPosnMultiplier*1000;
                 HallData[i].HallTimeDiff = (unsigned long)dt;
 
                 if (local_hall_params[i].incr != 0){
                     // speed = distance/time
                     // in this case, distance is always 1.
                     // and time is between 10 and 65535
-                    HallData[i].HallSpeed = 
+                    HallData[i].HallSpeed = (int)
                         (HALL_SPEED_CALIBRATION/(float)HallData[i].HallTimeDiff) * 
                         local_hall_params[i].incr;
 
-                    HallData[i].HallSpeed_m_per_s = 
+                    HallData[i].HallSpeed_mm_per_s = (int)
                         (HallData[i].HallPosnMultiplier/(float)HallData[i].HallTimeDiff) * 
                         (float)local_hall_params[i].incr * 
                         (float)HALL_INTERRUPT_TIMER_FREQ;
@@ -264,7 +265,7 @@ void TIM4_IRQHandler(void){
 
         for (int i = 0; i < 2; i++){
             if (local_hall_params[i].zerospeedtimeout <= 0){
-                HallData[i].HallSpeed = 0.0;
+                HallData[i].HallSpeed = 0;
                 HallData[i].HallTimeDiff = 0;
             } else {
                 local_hall_params[i].zerospeedtimeout--;

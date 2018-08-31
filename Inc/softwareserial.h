@@ -25,7 +25,7 @@
 
 //////////////////////////////////////////////////////////
 // get a character, -1 if none.
-short softwareserial_getrx(int port); 
+short softwareserial_getrx(); 
 
 //////////////////////////////////////////////////////////
 // copy a buffer of data to the output buffer, fail if no room

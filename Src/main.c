@@ -29,8 +29,10 @@
 #include "protocol.h"
 #include "bldc.h"
 #include "hallinterrupts.h"
+#include "softwareserial.h"
 //#include "hd44780.h"
 
+#include <memory.h>
 
 void SystemClock_Config(void);
 
@@ -56,10 +58,8 @@ int scale[2] = {15, 15};
 
 volatile Serialcommand command;
 
-#ifdef CONTROL_SENSOR
+#ifdef READ_SENSOR
 SENSOR_DATA last_sensor_data[2];
-SENSOR_DATA sensor_data[2];
-SENSOR_LIGHTS lights[2];
 int sensor_control = 1;
 int sensor_stabilise = 0;
 
@@ -77,7 +77,7 @@ int steer; // global variable for steering. -1000 to 1000
 int speed; // global variable for speed. -1000 to 1000
 
 extern int positional_control;
-extern float wanted_posn_m[2];
+extern int wanted_posn_mm[2];
 
 extern volatile int pwml;  // global variable for pwm left. -1000 to 1000
 extern volatile int pwmr;  // global variable for pwm right. -1000 to 1000
@@ -105,7 +105,7 @@ int milli_vel_error_sum = 0;
 
 
 void poweroff() {
-    if (abs(speed) < 20) {
+    if (ABS(speed) < 20) {
         buzzerPattern = 0;
         enable = 0;
         for (int i = 0; i < 8; i++) {
@@ -125,7 +125,9 @@ void poweroff() {
     }
 }
 
-int speedL = 0, speedR = 0;
+int speeds[2] = {0, 0};
+int dirs[2] = {-1, 1};
+int dspeeds[2] = {0,0};
 
 int main(void) {
   HAL_Init();
@@ -159,16 +161,16 @@ int main(void) {
     UART_Init();
   #endif
 
-  memset(&electrical_measurements, 0, sizeof(electrical_measurements));
+  memset((void*)&electrical_measurements, 0, sizeof(electrical_measurements));
 
   HAL_GPIO_WritePin(OFF_PORT, OFF_PIN, 1);
 
   HAL_ADC_Start(&hadc1);
   HAL_ADC_Start(&hadc2);
 
-  #ifdef CONTROL_SENSOR
+  #ifdef READ_SENSOR
   // initialise to 9 bit interrupt driven comms on USART 2 & 3
-  USART_init_sensor_comms();
+  sensor_USART_init();
   #endif
 
   for (int i = 8; i >= 0; i--) {
@@ -179,33 +181,15 @@ int main(void) {
 
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
 
-  int lastSpeedL = 0, lastSpeedR = 0;
-  float direction = 1;
+  int lastspeeds[2] = {0, 0};
 
-
-  #ifdef CONTROL_SENSOR
+  #ifdef READ_SENSOR
   // things we use in main loop for sensor control
   consoleLog("power on\n");
-  short c = 0;
-  char tmp[512];
-
-  memset(lights, 0, sizeof(lights));
-
-  int counts[2];
-  char rx[2][20];
-  char data_read[2] = {0,0};
   int OnBoard = 0;
   int Center[2] = {0, 0};
-  int Clamp[2] =  {0, 0};
-  short calibrationdata[2] = {0, 0};
-  int calibrationread = 0;
-
-  #ifdef FLASH_STORAGE
-    if (sizeof(calibrationdata) == readFlash(calibrationdata, sizeof(calibrationdata))){
-      calibrationread = 1;
-    }
-  #endif
-
+  int Clamp[2] =  {600, 600};
+  
   #endif
 
   #ifdef HALL_INTERRUPTS
@@ -213,7 +197,9 @@ int main(void) {
     HallInterruptinit();
   #endif
 
-  SoftwareSerialInit();
+  #ifdef SOFTWARE_SERIAL
+    SoftwareSerialInit();
+  #endif
 
   #ifdef CONTROL_PPM
     PPM_Init();
@@ -315,153 +301,85 @@ int main(void) {
     #ifdef CONTROL_SENSOR
       if (!power_button_held){
         // read the last sensor message in the buffer
-        for (int side = 0; side < 2; side++){
-          counts[side] = USART_sensor_rxcount(side);
-          int toflush = counts[side] - 20;
-          if (toflush > 0){
-            // flush data up to last 20 bytes
-            for (int i = 0; i < toflush; i++){
-              USART_sensor_getrx(side);
-            }
-
-            // read bytes until 0x100 is found with at least 10 bytes read
-            short c;
-            int i = 0;
-            do {
-              c = USART_sensor_getrx(side);
-              rx[side][i++] = c & 0xff;
-            } while ((!(c & 0x100) || (i < 10)) && (i < 20));
-
-            // if we got the end of a frame, copy into data
-            if (c & 0x100){
-              memcpy(&sensor_data[side], &rx[side][i-10], 10);
-              data_read[side] = 1;
-            }
-          }
-        }
-
-
-        lights[0].colour = SENSOR_COLOUR_RED;
-        lights[1].colour = SENSOR_COLOUR_RED;
-
-        if (sensor_stabilise > 0){
-          Clamp[0] = 30;
-          Clamp[1] = 30;
-        } else {
-          Clamp[0] = 600;
-          Clamp[1] = 600;
-        }
-
-        for (int i = 0; i < 2; i++){
-          // prevent activation if angle is large (+-17000 -> upside-down)
-          if (
-            ((sensor_data[i].AA_55 == 0x55) || 
-            (sensor_stabilise)) && 
-            (abs(sensor_data[i].Angle) < 10000)){
-            lights[i].colour = SENSOR_COLOUR_GREEN;
-            sensor_data[i].sensor_ok = 3;
-            memcpy(&last_sensor_data[i], &sensor_data[i], sizeof(last_sensor_data[i]));
-          } else {
-            sensor_data[i].sensor_ok--;
-            if (sensor_data[i].sensor_ok < 0)
-              sensor_data[i].sensor_ok = 0;
-          }
-        }
+        sensor_read_data();
 
         if (electrical_measurements.charging){
-          lights[0].flashcount = 3;
+          sensor_set_flash(0, 3);
         } else {
-          lights[0].flashcount = 0;
+          sensor_set_flash(0, 0);
         }
 
+        int rollhigh = 0;
         for (int i = 0; i < 2; i++){
           if  (sensor_data[i].sensor_ok){
+            sensor_set_colour(i, SENSOR_COLOUR_GREEN);
             scale[i] = 3;
           } else {
-            scale[i] = 15;
+            sensor_set_colour(i, SENSOR_COLOUR_RED);
+            scale[i] = 3;
+          }
+
+          if  (ABS(sensor_data[i].Roll) > 2000){
+            rollhigh = 1;
+          }
+          if  (ABS(sensor_data[i].Angle) > 9000){
+            rollhigh = 1;
           }
         }
 
-        if (sensor_data[0].sensor_ok && sensor_data[1].sensor_ok && !electrical_measurements.charging){
 
-          if (!OnBoard && !calibrationread){
-            Center[0] = last_sensor_data[0].Angle;
-            Center[1] = last_sensor_data[1].Angle;
-            OnBoard = 1;
-          }
-
-          if (sensor_stabilise > 0){
-            Center[0] = 0;
-            Center[1] = 0;
-          }
-
-  #ifdef USE_CALIBRATION_DATA
-        // it's very difficult to start of on the board unless the center is taken at the time of standing on it.
-          if (calibrationread){
-            Center[0] = calibrationdata[0];
-            Center[1] = calibrationdata[1];
-          }
-  #endif
-
-          if (sensor_control){
-            speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/3, -Clamp[0], Clamp[0]);
-            speedR = CLAMP( (last_sensor_data[1].Angle - Center[1])/3, -Clamp[1], Clamp[1]);
-            timeout = 0;
-            enable = 1;
-            lights[0].colour = SENSOR_COLOUR_YELLOW;
-            lights[1].colour = SENSOR_COLOUR_YELLOW;
-            inactivity_timeout_counter = 0;
-          }
-
-          if (sensor_stabilise > 0){
-            sensor_stabilise--;
-          }
-
-        } else {
-          OnBoard = 0;
-          if (sensor_control){
-            speedL = CLAMP(-(sensor_data[0].Angle)/scale[0], -60, 60);
-            speedR = CLAMP( (sensor_data[1].Angle)/scale[1], -60, 60);
+        // if roll is a large angle (>20 degrees)
+        // then disable
+        if (sensor_control){
+          if (rollhigh){
             enable = 0;
-          }
-        }
+          } else {
+            if (sensor_data[0].sensor_ok && sensor_data[1].sensor_ok && !electrical_measurements.charging){
+              if (!OnBoard){
+                Center[0] = sensor_data[0].Angle;
+                Center[1] = sensor_data[1].Angle;
+                OnBoard = 1;
+              }
 
+              for (int i = 0; i < 2; i++){
+                speeds[i] = CLAMP(dirs[i]*(sensor_data[i].Angle - Center[i])/3+dspeeds[i], -Clamp[i], Clamp[i]);
+                sensor_set_colour(i, SENSOR_COLOUR_YELLOW);
+              }
+              timeout = 0;
+              enable = 1;
+              inactivity_timeout_counter = 0;
+            } else {
+              OnBoard = 0;
+              for (int i = 0; i < 2; i++){
+                speeds[i] = CLAMP(dirs[i]*(sensor_data[i].Angle)/scale[i]+dspeeds[i], -80, 80);
+              }
+              timeout = 0;
+              enable = 1;
+            }
+          }
+        } 
 
         if (positional_control && !sensor_control){
           for (int i = 0; i < 2; i++){
-            float posn_diff = wanted_posn_m[i] - HallData[i].HallPosn_m;
-            float abs_posn_diff = ABS(posn_diff);
-            int speed = CLAMP((posn_diff*10.0*60.0), -200, 200);
+            int posn_diff_mm = wanted_posn_mm[i] - HallData[i].HallPosn_mm;
+            int abs_posn_diff = ABS(posn_diff_mm);
+            int speed = CLAMP(((posn_diff_mm*60)/100), -200, 200);
             // assert minimum speeds
             if (speed > 0 && speed < 60) speed = 60;
             if (speed < 0 && speed > -60) speed = -60;
 
             // we raise/lower speed over 5 clicks
-            if (abs_posn_diff > 0.005){
-              if (i == 0) speedL += (speed - speedL)/5;
-              else speedR  += (speed - speedR)/5;
-            } else {
-              if (i == 0) {
-                speedL -= speedL/5;
-                if (speedL < 15) speedL = 0;
-              }
-              else {
-                speedR -= speedR/5;
-                if (speedR < 15) speedR = 0;
-              }
-            } 
+            speeds[i] += (speed - speeds[i])/5;
+            if (abs_posn_diff < 10){
+              if (ABS(speeds[i]) < 15) speeds[i] = 0;
+            }
           }
         }
-
       }
 
       // send twice to make sure each side gets it.
       // if we sent diagnositc data, it seems to need this.
-      USART_sensorSend(0, &lights[0], 6, 1);
-      USART_sensorSend(0, &lights[0], 6, 1);
-      USART_sensorSend(1, &lights[1], 6, 1);
-      USART_sensorSend(1, &lights[1], 6, 1);
-
+      sensor_send_lights();
     #else
 
 
@@ -471,8 +389,8 @@ int main(void) {
 
 
       // ####### MIXER #######
-      speedR = CLAMP(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT, -1000, 1000);
-      speedL = CLAMP(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT, -1000, 1000);
+      speeds[0] = CLAMP(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT, -1000, 1000);
+      speeds[1] = CLAMP(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT, -1000, 1000);
 
     #endif
 
@@ -480,23 +398,20 @@ int main(void) {
       ADDITIONAL_CODE;
     #endif
 
-    // ####### SET OUTPUTS #######
-    if ((speedL < lastSpeedL + 50 && speedL > lastSpeedL - 50) && (speedR < lastSpeedR + 50 && speedR > lastSpeedR - 50) && timeout < TIMEOUT) {
     #ifdef INVERT_R_DIRECTION
-      pwmr = speedR;
+      pwmr = speeds[1];
     #else
-      pwmr = -speedR;
+      pwmr = -speeds[1];
     #endif
     #ifdef INVERT_L_DIRECTION
-      pwml = -speedL;
+      pwml = -speeds[0];
     #else
-      pwml = speedL;
+      pwml = speeds[0];
     #endif
+
+    for (int i = 0; i < 2; i++){
+      lastspeeds[i] = speeds[i];
     }
-
-    lastSpeedL = speedL;
-    lastSpeedR = speedR;
-
 
     if ((debug_counter++) % 100 == 0) {
       // ####### CALC BOARD TEMPERATURE #######
@@ -519,15 +434,15 @@ int main(void) {
         setScopeChannel(1, -(int)sensor_data[1].Angle);  // 2: ADC2
       #endif
 
-      setScopeChannel(2, (int)speedR);  // 3: output speed: 0-1000
-      setScopeChannel(3, (int)speedL);  // 4: output speed: 0-1000
+      setScopeChannel(2, (int)speeds[1]);  // 3: output speed: 0-1000
+      setScopeChannel(3, (int)speeds[0]);  // 4: output speed: 0-1000
       setScopeChannel(4, (int)adc_buffer.batt1);  // 5: for battery voltage calibration
       setScopeChannel(5, (int)(batteryVoltage * 100.0f));  // 6: for verifying battery voltage calibration
       setScopeChannel(6, (int)board_temp_adc_filtered);  // 7: for board temperature calibration
       setScopeChannel(7, (int)board_temp_deg_c);  // 8: for verifying board temperature calibration
       consoleScope();
 
-      SoftwareSerialReadTimer();
+//      SoftwareSerialReadTimer();
     }
 
 
@@ -535,14 +450,15 @@ int main(void) {
       // highlight that the button has been helpd for >5s
       if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
         #if defined CONTROL_SENSOR && defined FLASH_STORAGE
-          lights[0].flashcount = 2;
-          lights[1].flashcount = 2;
+          sensor_set_flash(0, 2);
+          sensor_set_flash(1, 2);
         #endif
       }
 
       if (!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)){
         // if it was held for > 5 seconds
         if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
+#ifdef EXAMPLE_FLASH_ONLY
           #if defined CONTROL_SENSOR && defined FLASH_STORAGE
             calibrationdata[0] = sensor_data[0].Angle;
             calibrationdata[1] = sensor_data[1].Angle;
@@ -552,9 +468,10 @@ int main(void) {
             sprintf(tmp, "\r\n*** Write Flash Calibration data");
             consoleLog(tmp);
             writeFlash((unsigned char *) calibrationdata, sizeof(calibrationdata));
-            lights[0].flashcount = 0;
-            lights[1].flashcount = 0;
+            sensor_set_flash(0, 0);
+            sensor_set_flash(1, 0);
           #endif
+#endif
         }
 
         power_button_held = 0;
@@ -575,7 +492,7 @@ int main(void) {
     }
 
     // ####### BEEP AND EMERGENCY POWEROFF #######
-    if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && abs(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && abs(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3
+    if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && ABS(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && abs(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3
       poweroff();
     } else if (TEMP_WARNING_ENABLE && board_temp_deg_c >= TEMP_WARNING) {  // beep if mainboard gets hot
       buzzerFreq = 4;
@@ -600,7 +517,7 @@ int main(void) {
 
 
     // ####### INACTIVITY TIMEOUT #######
-    if (abs(speedL) > 50 || abs(speedR) > 50) {
+    if (abs(speeds[0]) > 50 || abs(speeds[1]) > 50) {
       inactivity_timeout_counter = 0;
     } else {
       inactivity_timeout_counter ++;
@@ -634,7 +551,7 @@ int main(void) {
 
       // spit a msg every 2 seconds
       if (!(powerofftimer % (2000/DELAY_IN_MAIN_LOOP))){
-        char tmp[20];
+        char tmp[30];
         sprintf(tmp, "power off in %ds\r\n", (powerofftimer*DELAY_IN_MAIN_LOOP)/1000 );
         consoleLog(tmp);
       }
