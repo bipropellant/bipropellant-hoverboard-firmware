@@ -81,6 +81,37 @@ typedef struct tag_HALL_POSN {
 
 void HallInterruptReadPosn( HALL_POSN *p, int Reset );
 
+
+typedef struct tag_HALL_PARAMS{
+    uint8_t hall_u;
+    uint8_t hall_v;
+    uint8_t hall_w;
+
+    uint8_t hall;
+    uint8_t last_hall;
+
+    long long hall_time;
+    long long last_hall_time;
+    unsigned int timerwraps;
+    unsigned int last_timerwraps;
+
+    int incr;
+
+    int zerospeedtimeout;
+
+    // contant - modifies sign of calculated values
+    int direction;
+
+
+    int dmacount;
+} HALL_PARAMS;
+
+extern volatile HALL_DATA_STRUCT HallData[2];
+extern TIM_HandleTypeDef h_timer_hall;
+extern volatile HALL_PARAMS local_hall_params[2];
+extern volatile long long timerwraps;
+
+
 #endif
 
 #endif

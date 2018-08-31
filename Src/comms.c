@@ -22,6 +22,7 @@ volatile uint8_t uart_buf[100];
 volatile int16_t ch_buf[8];
 
 int debug_out = 1;
+int enablescope = 1;
 
 //volatile char char_buf[300];
 
@@ -30,6 +31,9 @@ void setScopeChannel(uint8_t ch, int16_t val) {
 }
 
 void consoleScope() {
+  if (!enablescope)
+    return;
+
   #if defined DEBUG_SERIAL_SERVOTERM && defined DEBUG_SERIAL_USART3
     uart_buf[0] = 0xff;
     uart_buf[1] = CLAMP(ch_buf[0]+127, 0, 255);

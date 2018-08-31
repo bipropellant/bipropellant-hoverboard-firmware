@@ -28,6 +28,7 @@
 #include "flashaccess.h"
 #include "protocol.h"
 #include "bldc.h"
+#include "hallinterrupts.h"
 //#include "hd44780.h"
 
 void SystemClock_Config(void);
@@ -50,16 +51,20 @@ typedef struct{
    int16_t speed;
    //uint32_t crc;
 } Serialcommand;
+int scale[2] = {15, 15};
 
 volatile Serialcommand command;
 
 #ifdef CONTROL_SENSOR
 SENSOR_DATA last_sensor_data[2];
+SENSOR_DATA sensor_data[2];
+SENSOR_LIGHTS lights[2];
 int sensor_control = 1;
 int sensor_stabilise = 0;
 
 #endif
 int disablepoweroff = 0;
+int powerofftimer = 0;
 
 
 extern volatile unsigned int timerval;
@@ -70,6 +75,9 @@ uint8_t button1, button2;
 int steer; // global variable for steering. -1000 to 1000
 int speed; // global variable for speed. -1000 to 1000
 
+extern int positional_control;
+extern float wanted_posn_m[2];
+
 extern volatile int pwml;  // global variable for pwm left. -1000 to 1000
 extern volatile int pwmr;  // global variable for pwm right. -1000 to 1000
 extern volatile int weakl; // global variable for field weakening left. -1000 to 1000
@@ -77,6 +85,7 @@ extern volatile int weakr; // global variable for field weakening right. -1000 t
 
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
+int buzzerLen = 0;
 
 extern uint8_t enable; // global variable for motor enable
 
@@ -179,9 +188,6 @@ int main(void) {
   short c = 0;
   char tmp[512];
 
-  SENSOR_LIGHTS lights[2];
-  SENSOR_DATA sensor_data[2];
-  int sensor_ok[2] = {0,0};
   memset(lights, 0, sizeof(lights));
 
   int counts[2];
@@ -331,19 +337,6 @@ int main(void) {
               data_read[side] = 1;
             }
           }
-
-          if (data_read[side]){
-            sprintf(tmp, "\r\n%d: %d %d %2X %d %d", side, 
-              (int)sensor_data[side].Angle, 
-              (int)sensor_data[side].Angle_duplicate, 
-              (int)sensor_data[side].AA_55, 
-              (int)sensor_data[side].Accelleration, 
-              (int)sensor_data[side].Roll);
-            //consoleLog(tmp);
-          } else {
-            sprintf(tmp, "\r\n%d: nodata", side); 
-            //consoleLog(tmp);
-          }
         }
 
 
@@ -365,12 +358,12 @@ int main(void) {
             (sensor_stabilise)) && 
             (abs(sensor_data[i].Angle) < 10000)){
             lights[i].colour = SENSOR_COLOUR_GREEN;
+            sensor_data[i].sensor_ok = 3;
             memcpy(&last_sensor_data[i], &sensor_data[i], sizeof(last_sensor_data[i]));
-            sensor_ok[i] = 3;
           } else {
-            sensor_ok[i]--;
-            if (sensor_ok[i] < 0)
-              sensor_ok[i] = 0;
+            sensor_data[i].sensor_ok--;
+            if (sensor_data[i].sensor_ok < 0)
+              sensor_data[i].sensor_ok = 0;
           }
         }
 
@@ -380,7 +373,15 @@ int main(void) {
           lights[0].flashcount = 0;
         }
 
-        if (sensor_ok[0] && sensor_ok[1] && !electrical_measurements.charging){
+        for (int i = 0; i < 2; i++){
+          if  (sensor_data[i].sensor_ok){
+            scale[i] = 3;
+          } else {
+            scale[i] = 15;
+          }
+        }
+
+        if (sensor_data[0].sensor_ok && sensor_data[1].sensor_ok && !electrical_measurements.charging){
 
           if (!OnBoard && !calibrationread){
             Center[0] = last_sensor_data[0].Angle;
@@ -418,11 +419,39 @@ int main(void) {
         } else {
           OnBoard = 0;
           if (sensor_control){
-            speedL = CLAMP(-(last_sensor_data[0].Angle - Center[0])/2, -600, 600);
-            speedR = CLAMP((last_sensor_data[1].Angle - Center[1])/2, -600, 600);
+            speedL = CLAMP(-(sensor_data[0].Angle)/scale[0], -60, 60);
+            speedR = CLAMP( (sensor_data[1].Angle)/scale[1], -60, 60);
             enable = 0;
           }
         }
+
+
+        if (positional_control && !sensor_control){
+          for (int i = 0; i < 2; i++){
+            float posn_diff = wanted_posn_m[i] - HallData[i].HallPosn_m;
+            float abs_posn_diff = ABS(posn_diff);
+            int speed = CLAMP((posn_diff*10.0*60.0), -200, 200);
+            // assert minimum speeds
+            if (speed > 0 && speed < 60) speed = 60;
+            if (speed < 0 && speed > -60) speed = -60;
+
+            // we raise/lower speed over 5 clicks
+            if (abs_posn_diff > 0.005){
+              if (i == 0) speedL += (speed - speedL)/5;
+              else speedR  += (speed - speedR)/5;
+            } else {
+              if (i == 0) {
+                speedL -= speedL/5;
+                if (speedL < 15) speedL = 0;
+              }
+              else {
+                speedR -= speedR/5;
+                if (speedR < 15) speedR = 0;
+              }
+            } 
+          }
+        }
+
       }
 
       // send twice to make sure each side gets it.
@@ -449,7 +478,6 @@ int main(void) {
     #ifdef ADDITIONAL_CODE
       ADDITIONAL_CODE;
     #endif
-
 
     // ####### SET OUTPUTS #######
     if ((speedL < lastSpeedL + 50 && speedL > lastSpeedL - 50) && (speedR < lastSpeedR + 50 && speedR > lastSpeedR - 50) && timeout < TIMEOUT) {
@@ -498,25 +526,7 @@ int main(void) {
       setScopeChannel(7, (int)board_temp_deg_c);  // 8: for verifying board temperature calibration
       consoleScope();
 
-      char tmp[40];
-      sprintf(tmp, "\r\ncal: %d %d\r\n\r\n", 
-        calibrationdata[0], 
-        calibrationdata[1]); 
-      consoleLog(tmp);
-
       SoftwareSerialReadTimer();
-      sprintf(tmp, "\r\ntimer %u\r\n", 
-        timerval); 
-      consoleLog(tmp);
-
-
-      //softwareserial_Send("hello\r\n", 7);
-
-
-      sprintf(tmp, "\r\nss bits %u\r\n", 
-        ssbits); 
-      consoleLog(tmp);
-
     }
 
 
@@ -557,6 +567,12 @@ int main(void) {
       }
     }
 
+    // if we plug in the charger, keep us alive
+    // also if we have deliberately turned off poweroff over serial
+    if (electrical_measurements.charging || disablepoweroff){
+      inactivity_timeout_counter = 0;
+    }
+
     // ####### BEEP AND EMERGENCY POWEROFF #######
     if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && abs(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && abs(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3
       poweroff();
@@ -573,8 +589,12 @@ int main(void) {
       buzzerFreq = 5;
       buzzerPattern = 1;
     } else {  // do not beep
-      buzzerFreq = 0;
-      buzzerPattern = 0;
+      if (buzzerLen > 0){
+        buzzerLen--;
+      } else {
+        buzzerFreq = 0;
+        buzzerPattern = 0;
+      }
     }
 
 
@@ -584,9 +604,54 @@ int main(void) {
     } else {
       inactivity_timeout_counter ++;
     }
+
+    // inactivity 10s warning; 1s bleeping
+    if ((inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 50 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) &&
+        (buzzerFreq == 0)) {
+      buzzerFreq = 3;
+      buzzerPattern = 1;
+      buzzerLen = 1000;
+    }
+
+    // inactivity 5s warning; 1s bleeping
+    if ((inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 55 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) &&
+        (buzzerFreq == 0)) {
+      buzzerFreq = 2;
+      buzzerPattern = 1;
+      buzzerLen = 1000;
+    }
+
+    // power off after ~60s of inactivity
     if (inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 60 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) {  // rest of main loop needs maybe 1ms
-      if (!disablepoweroff){
-        inactivity_timeout_counter = 0;
+      inactivity_timeout_counter = 0;
+      poweroff();
+    }
+
+
+    if (powerofftimer > 0){
+      powerofftimer --;
+
+      // spit a msg every 2 seconds
+      if (!(powerofftimer % (2000/DELAY_IN_MAIN_LOOP))){
+        char tmp[20];
+        sprintf(tmp, "power off in %ds\r\n", (powerofftimer*DELAY_IN_MAIN_LOOP)/1000 );
+        consoleLog(tmp);
+      }
+
+      if (powerofftimer <= 10000/DELAY_IN_MAIN_LOOP){
+        buzzerFreq = 3;
+        buzzerPattern = 1;
+        buzzerLen = 1000;
+      }
+
+      if (powerofftimer <= 5000/DELAY_IN_MAIN_LOOP){
+        buzzerFreq = 2;
+        buzzerPattern = 1;
+        buzzerLen = 1000;
+      }
+
+      if (powerofftimer <= 0){
+        powerofftimer = 0;
         poweroff();
       }
     }

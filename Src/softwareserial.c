@@ -74,9 +74,9 @@ void SoftwareSerialInit(void){
   GPIO_InitStruct.Pull  = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 
-  GPIO_InitStruct.Pin = SOFTWARE_SERIAL_PIN;
+  GPIO_InitStruct.Pin = SOFTWARE_SERIAL_RX_PIN;
   GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING_FALLING;
-  HAL_GPIO_Init(SOFTWARE_SERIAL_PORT, &GPIO_InitStruct);
+  HAL_GPIO_Init(SOFTWARE_SERIAL_RX_PORT, &GPIO_InitStruct);
 
   
   // setup TIM2:
@@ -207,7 +207,7 @@ int softwareserial_Send_Wait(unsigned char *data, int len){
 
 // interrupt on rising or falling edge of serial....
 void softwareserialRXInterrupt(void){
-    char value = (SOFTWARE_SERIAL_PORT->IDR & SOFTWARE_SERIAL_PIN)?1:0;
+    char value = (SOFTWARE_SERIAL_RX_PORT->IDR & SOFTWARE_SERIAL_RX_PIN)?1:0;
     unsigned int time = softwareserialtimer.Instance->CNT;
 
 

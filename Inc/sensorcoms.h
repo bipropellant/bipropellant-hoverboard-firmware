@@ -45,6 +45,10 @@ typedef struct tag_sensor_data{
   unsigned char Accelleration_duplicate;
   short Roll;
   unsigned char header_00; // this byte gets 0x100 (9 bit serial)
+
+
+  // not included in message:
+  int sensor_ok;
 } SENSOR_DATA;
 
 // bytes send to sensor.

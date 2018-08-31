@@ -64,29 +64,9 @@ volatile HALL_DATA_STRUCT HallData[2];
 //////////////////////////////////////////////////////////////
 // local data
 TIM_HandleTypeDef h_timer_hall;
+volatile HALL_PARAMS local_hall_params[2];
 
-static struct {
-    uint8_t hall_u;
-    uint8_t hall_v;
-    uint8_t hall_w;
-
-    uint8_t hall;
-    uint8_t last_hall;
-
-    long long hall_time;
-    long long last_hall_time;
-    unsigned int timerwraps;
-    unsigned int last_timerwraps;
-
-    int incr;
-
-    int zerospeedtimeout;
-
-    // contant - modifies sign of calculated values
-    int direction;
-} local_hall_params[2];
-
-static volatile long long timerwraps = 0;
+volatile long long timerwraps = 0;
 
 static float WheelSize_m = (DEFAULT_WHEEL_SIZE_INCHES * 0.0254);
 
@@ -225,19 +205,11 @@ void HallInterruptsInterrupt(void){
     __disable_irq(); // but we want both values at the same time, without interferance
     unsigned long time = h_timer_hall.Instance->CNT;
     long long timerwraps_copy = timerwraps;
-
-    local_hall_params[0].hall_u = !(LEFT_HALL_U_PORT->IDR & LEFT_HALL_U_PIN);
-    local_hall_params[0].hall_v = !(LEFT_HALL_V_PORT->IDR & LEFT_HALL_V_PIN);
-    local_hall_params[0].hall_w = !(LEFT_HALL_W_PORT->IDR & LEFT_HALL_W_PIN);
-
-    local_hall_params[1].hall_u = !(RIGHT_HALL_U_PORT->IDR & RIGHT_HALL_U_PIN);
-    local_hall_params[1].hall_v = !(RIGHT_HALL_V_PORT->IDR & RIGHT_HALL_V_PIN);
-    local_hall_params[1].hall_w = !(RIGHT_HALL_W_PORT->IDR & RIGHT_HALL_W_PIN);
+    local_hall_params[0].hall = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
+    local_hall_params[1].hall = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
     __enable_irq();
 
     for (int i = 0; i < 2; i++){
-        local_hall_params[i].hall = local_hall_params[i].hall_u * 1 + local_hall_params[i].hall_v * 2 + local_hall_params[i].hall_w * 4;
-
         // if this wheel change hall input
         if (local_hall_params[i].last_hall != local_hall_params[i].hall){
             if (local_hall_params[i].last_hall == 0){

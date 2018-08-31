@@ -229,7 +229,7 @@ void EXTI0_IRQHandler(void)
 {
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_0);
 #ifdef SOFTWARE_SERIAL
-    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_0)
+    if (SOFTWARE_SERIAL_RX_PIN == GPIO_PIN_0)
       softwareserialRXInterrupt();
 #endif
 }
@@ -238,7 +238,7 @@ void EXTI1_IRQHandler(void)
 {
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_1);
 #ifdef SOFTWARE_SERIAL
-    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_1)
+    if (SOFTWARE_SERIAL_RX_PIN == GPIO_PIN_1)
       softwareserialRXInterrupt();
 #endif
 }
@@ -247,7 +247,7 @@ void EXTI2_IRQHandler(void)
 {
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_2);
 #ifdef SOFTWARE_SERIAL
-    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_2)
+    if (SOFTWARE_SERIAL_RX_PIN == GPIO_PIN_2)
       softwareserialRXInterrupt();
 #endif
 }
@@ -259,7 +259,7 @@ void EXTI3_IRQHandler(void)
 #endif
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_3);
 #ifdef SOFTWARE_SERIAL
-    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_3)
+    if (SOFTWARE_SERIAL_RX_PIN == GPIO_PIN_3)
       softwareserialRXInterrupt();
 #endif
 }
@@ -268,7 +268,7 @@ void EXTI4_IRQHandler(void)
 {
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_4);
 #ifdef SOFTWARE_SERIAL
-    if (SOFTWARE_SERIAL_PIN == GPIO_PIN_4)
+    if (SOFTWARE_SERIAL_RX_PIN == GPIO_PIN_4)
       softwareserialRXInterrupt();
 #endif
 }
@@ -319,7 +319,7 @@ void EXTI9_5_IRQHandler(void)
 
 // shared interrupt for these pins, depending on where the sfotware serial pin is
 #ifdef SOFTWARE_SERIAL
-  if (triggered & SOFTWARE_SERIAL_PIN){
+  if (triggered & SOFTWARE_SERIAL_RX_PIN){
       softwareserialRXInterrupt();
   }
 #endif
@@ -375,7 +375,7 @@ void EXTI15_10_IRQHandler(void)
 #endif
 // shared interrupt for these pins, depending on where the sfotware serial pin is
 #ifdef SOFTWARE_SERIAL
-  if (triggered & SOFTWARE_SERIAL_PIN){
+  if (triggered & SOFTWARE_SERIAL_RX_PIN){
       softwareserialRXInterrupt();
   }
 #endif

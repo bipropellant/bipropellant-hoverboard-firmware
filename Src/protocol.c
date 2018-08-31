@@ -77,7 +77,7 @@
 ///////////////////////////////////////////////
 // extern variables you want to read/write here
 #ifdef CONTROL_SENSOR
-extern SENSOR_DATA last_sensor_data[2];
+extern SENSOR_DATA sensor_data[2];
 #endif
 
 extern uint8_t enable; // global variable for motor enable
@@ -88,9 +88,17 @@ extern int debug_out;
 extern int sensor_control;
 extern int sensor_stabilise;
 extern int disablepoweroff;
+extern int powerofftimer;
+extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
+extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
+extern int buzzerLen;
+extern int enablescope; // enable scope on values
 
 int speedB = 0;
 int steerB = 0;
+
+int positional_control = 0;
+float wanted_posn_m[2] = {0,0};
 ///////////////////////////////////////////////
 
 
@@ -162,7 +170,7 @@ int version = 1;
 PARAMSTAT params[] = {
     { 0x00, &version,           4,                          PARAM_R,    NULL, NULL, NULL, NULL },
 #ifdef CONTROL_SENSOR
-    { 0x01, &last_sensor_data,   sizeof(last_sensor_data),   PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x01, &sensor_data,   sizeof(sensor_data),   PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
 #ifdef HALL_INTERRUPTS
     { 0x02, &HallData,           sizeof(HallData),           PARAM_R,    NULL, NULL, NULL, NULL },
@@ -271,6 +279,7 @@ void ascii_byte( unsigned char byte ){
         // on CR or LF, process gathered messages
         if ((byte == '\r') || (byte == '\n')){
             send_serial_data((unsigned char *) &byte, 1);
+            ascii_cmd[ascii_posn] = 0;
             ascii_process_msg(ascii_cmd, ascii_posn);
             ascii_posn = 0;
             // send prompt
@@ -292,7 +301,6 @@ void ascii_byte( unsigned char byte ){
 }
 
 
-
 /////////////////////////////////////////////
 // single byte commands at start of command 
 // - i.e. only after CR of LF and ascii buffer empty
@@ -300,62 +308,52 @@ int ascii_process_immediate(unsigned char byte){
     int processed = 0;
     ascii_out[0] = 0;
 
+    int dir = 1;
     switch(byte){
+        case 'S':
+        case 's':
+            dir = -1;
         case 'W':
         case 'w':
             processed = 1;
             if (!enable) { speedB = 0; steerB = 0; }
-            speedB += 10;
-            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-
             sensor_control = 0;
             enable = 1;
             timeout = 0;
-            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
-            break;
 
-        case 'S':
-        case 's':
-            processed = 1;
-            if (!enable) { speedB = 0; steerB = 0; }
-            speedB -= 10;
-            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-            sensor_control = 0;
-            enable = 1;
-            timeout = 0;
-            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+            if (positional_control){
+                wanted_posn_m[0] += (float)dir * 0.1;
+                wanted_posn_m[1] += (float)dir * 0.1;
+                sprintf(ascii_out, "wanted_posn now %.2fm %.2fm\r\n", wanted_posn_m[0], wanted_posn_m[1]);
+            } else {
+                speedB += 10*dir;
+                speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+            }
             break;
 
         case 'A':
         case 'a':
-            processed = 1;
-            if (!enable) { speedB = 0; steerB = 0; }
-            steerB -= 10;
-            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-
-            sensor_control = 0;
-            enable = 1;
-            timeout = 0;
-            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
-            break;
-
+            dir = -1;
         case 'D':
         case 'd':
             processed = 1;
             if (!enable) { speedB = 0; steerB = 0; }
-            steerB += 10;
-            speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-            speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-
             sensor_control = 0;
             enable = 1;
             timeout = 0;
-            sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+            if (positional_control){
+                wanted_posn_m[0] += (float)dir * 0.1;
+                wanted_posn_m[1] -= (float)dir * 0.1;
+                sprintf(ascii_out, "wanted_posn now %.2fm %.2fm\r\n", wanted_posn_m[0], wanted_posn_m[1]);
+            } else {
+                steerB -= 10*dir;
+                speedR = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                speedL = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speedL, speedR);
+            }
             break;
-
 
         case 'X':
         case 'x':
@@ -396,13 +394,28 @@ int ascii_process_immediate(unsigned char byte){
 #ifdef HALL_INTERRUPTS
             processed = 1;
             sprintf(ascii_out, 
-                "L: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u\r\n"\
-                "R: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u\r\n",
-                HallData[0].HallPosn, HallData[0].HallPosn_m, HallData[0].HallSpeed, HallData[0].HallSpeed_m_per_s, HallData[0].HallTimeDiff, HallData[0].HallSkipped,
-                HallData[1].HallPosn, HallData[1].HallPosn_m, HallData[1].HallSpeed, HallData[1].HallSpeed_m_per_s, HallData[1].HallTimeDiff, HallData[1].HallSkipped
+                "L: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u Dma:%d\r\n"\
+                "R: P:%d(%.3fm) S:%.1f(%.3fm/s) dT:%u Skip:%u Dma:%d\r\n",
+                HallData[0].HallPosn, HallData[0].HallPosn_m, HallData[0].HallSpeed, HallData[0].HallSpeed_m_per_s, HallData[0].HallTimeDiff, HallData[0].HallSkipped, local_hall_params[0].dmacount,
+                HallData[1].HallPosn, HallData[1].HallPosn_m, HallData[1].HallSpeed, HallData[1].HallSpeed_m_per_s, HallData[1].HallTimeDiff, HallData[1].HallSkipped, local_hall_params[1].dmacount
             );
 #else
             sprintf(ascii_out, "Hall Data not available\r\n");
+#endif
+            break;
+
+        case 'N':
+        case 'n':
+#ifdef CONTROL_SENSOR
+            processed = 1;
+            sprintf(ascii_out, 
+                "L: OK:%d Foot:%d Angle:%d Roll:%d Accel:%d\r\n"\
+                "R: OK:%d Foot:%d Angle:%d Roll:%d Accel:%d\r\n",
+                sensor_data[0].sensor_ok, (sensor_data[0].AA_55 == 0x55)?1:0, sensor_data[0].Angle, sensor_data[0].Roll, sensor_data[0].Accelleration,
+                sensor_data[1].sensor_ok, (sensor_data[1].AA_55 == 0x55)?1:0, sensor_data[1].Angle, sensor_data[1].Roll, sensor_data[1].Accelleration
+            );
+#else
+            sprintf(ascii_out, "Sensor Data not available\r\n");
 #endif
             break;
 
@@ -430,6 +443,16 @@ int ascii_process_immediate(unsigned char byte){
                 (BUTTON_PORT->IDR & BUTTON_PIN)?1:0,
                 (CHARGER_PORT->IDR & CHARGER_PIN)?1:0
             );
+            break;
+
+        case 'O':
+        case 'o':
+            positional_control ^= 1;
+            if (positional_control){
+                wanted_posn_m[0] = HallData[0].HallPosn_m;
+                wanted_posn_m[1] = HallData[1].HallPosn_m;
+            }
+            sprintf(ascii_out, "positional control now %d\r\n", positional_control);
             break;
 
         default:
@@ -465,42 +488,70 @@ void ascii_process_msg(char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "Hoverboard Mk1\r\n"\
                 "Cmds (press return after):\r\n"\
-                " E -toggle dEbug\r\n"\
+                " A n m l -set buzzer (freq, patt, len_ms)\r\n"\
                 " B -toggle sensor Board control\r\n"\
-                " P -toggle disablepoweroff\r\n"
+                " E - dEbug 'E'-disable all, EC-enable consoleLog, ES enable Scope\r\n"\
+                " P -power control\r\n"\
+                "  P -disablepoweroff\r\n"\
+                "  PE enable poweroff\r\n"\
+                "  Pn power off in n seconds\r\n"
                 " I -enable Immediate commands:\r\n"\
                 "   W/S/A/D/X -Faster/Slower/Lefter/Righter/DisableDrive\r\n"\
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n"\
+                "   N - read seNsor data\r\n"
                 " T -send a test message A-ack N-nack T-test\r\n"\
                 " ? -show this\r\n"
                 );
             send_serial_data_wait(ascii_out, strlen(ascii_out));
             ascii_out[0] = 0;
             break;
-        case 'E':
-        case 'e':
-            debug_out ^= 1;
-            sprintf(ascii_out, "Debug now %d\r\n", debug_out);
+
+        case 'A':
+        case 'a':{
+            int a = 0;
+            int b = 0;
+            int c = 0;
+            if (len > 1){
+                sscanf(cmd+1, "%d %d %d", &a, &b, &c);
+            }
+            if (a && (0==c)){
+                c = 1000;
+            }
+
+            buzzerFreq = a;
+            buzzerPattern = b;
+            buzzerLen = c/5; // roughly 5ms per main loop, so 1s default
+            sprintf(ascii_out, "Alarm set to %d %d %d\r\n", a, b, c);
             break;
+        }
+
         case 'B':
         case 'b':
             sensor_control ^= 1;
             sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
             break;
-
-        case 'P':
-        case 'p':
-            disablepoweroff ^= 1;
-            sprintf(ascii_out, "disablepoweroff now %d\r\n", disablepoweroff);
-            break;
-
         case 'C':
         case 'c':
             ascii_process_immediate('c');
             // already sent
             ascii_out[0] = 0;
             break;
-
+        case 'E':
+        case 'e':
+            if (len == 1){
+                debug_out = 0;
+                enablescope = 0;
+            } else {
+                if ((cmd[1] | 0x20) == 's'){
+                    enablescope = 1;
+                    debug_out = 1;
+                }
+                if ((cmd[1] | 0x20) == 'c'){
+                    debug_out = 1;
+                }
+            }
+            sprintf(ascii_out, "debug_out now %d\r\nenablescope now %d\r\n", debug_out, enablescope);
+            break;
         case 'G':
         case 'g':
             ascii_process_immediate('g');
@@ -508,10 +559,52 @@ void ascii_process_msg(char *cmd, int len){
             ascii_out[0] = 0;
             break;
 
+        case 'H':
+        case 'h':
+            ascii_process_immediate('h');
+            // already sent
+            ascii_out[0] = 0;
+            break;
+
         case 'I':
         case 'i':
             enable_immediate = 1;
-            sprintf(ascii_out, "Immediate commands enabled - WASDXQ\r\n>");
+            sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ\r\n>");
+            break;
+
+        case 'N':
+        case 'n':
+            ascii_process_immediate('n');
+            // already sent
+            ascii_out[0] = 0;
+            break;
+
+        case 'P':
+        case 'p':
+            if (len == 1){
+                disablepoweroff = 1;
+                powerofftimer = 0;
+            } else {
+                if ((cmd[1] | 0x20) == 'e'){
+                    disablepoweroff = 0;
+                    powerofftimer = 0;
+                } else {
+                    int s = -1;
+                    sscanf(cmd+1, "%d", &s);
+                    if (s >= 0){
+                        if (s == 0){
+                            poweroff();
+                        } else {
+                            powerofftimer = ((s*1000)/DELAY_IN_MAIN_LOOP);
+                        }
+                    }
+                }
+            }
+            sprintf(ascii_out, 
+                "disablepoweroff now %d\r\n"\
+                "powerofftimer now %d\r\n",
+                disablepoweroff,
+                powerofftimer);
             break;
 
         case 'T':
