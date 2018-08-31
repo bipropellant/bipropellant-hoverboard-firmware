@@ -1,28 +1,20 @@
-## Building the firmware in platform.io
+# Building the firmware in platformio
+You can use platformio either with an IDE or via command line.
 
-This folder contains a platformio.ini file which results in a successful build of the hoverboard firmware.
+## IDE
+1. Follow the [ide installation guide](https://platformio.org/platformio-ide). (It works with vscode or atom)
+2. Open the Hoverbot directory in your IDE
+3. Build it by typing in terminal:
+```
+pio run
+```
+4. If you see SUCCESS, that means it built :)
 
-To use it, you must:
-
-1/ make a new folder.
-
-2/ create a sub-folder called 'src'
-
-3/ move all the files in this repo to that folder.
-
-4/ copy the platformio.ini file to the first folder you created.
-
-
-Then, you can open the folder in platform.io (e.g. vscode or atom based IDE), and it should build.
-
-
-
-There were a couple of changes to the source code to enable build:
-
-a/ 'inline' was changed to 'static inline' in bldc.c
-
-b/ 'spoof_init.c' was introduced to provide an empty '_init()' function
-
-
-In the platformio.ini, src_filter is used to prevent platform.io from building ALL the files in Drivers.
-
+## Command Line
+1. Install the command line tool via the [cli installation guide](https://docs.platformio.org/en/latest/installation.html)
+2. cd to the Hoverbot directory
+3. Build it: 
+```
+pio run
+```
+4. If you see SUCCESS, that means it built :)
