@@ -452,7 +452,7 @@ int main(void) {
                   // Read process feedback
 
                   // won't work below about 45
-                  if (SpeedData.wanted_speed_mm_per_sec[i] < SpeedData.speed_minimum_speed){
+                  if (ABS(SpeedData.wanted_speed_mm_per_sec[i]) < SpeedData.speed_minimum_speed){
                     SpeedPidFloats[i].set = 0;
                   } else {  
                     SpeedPidFloats[i].set = SpeedData.wanted_speed_mm_per_sec[i];
