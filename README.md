@@ -11,28 +11,28 @@ b/ to provide serial control, but not via USART2/3. Done.  Machine protocol need
 c/ to include a RPi ZeroW inside the hoverboard. Done.
 
 
-Added:
+# Added:
 
-Software serial: This allows you to use ANY GPIO pins (with modififcation) as serial.  Probably best to stay at 9600 baud, as the receive interrupt is serviced at 8x the bitrate.
+*Software serial:* This allows you to use ANY GPIO pins (with modififcation) as serial.  Probably best to stay at 9600 baud, as the receive interrupt is serviced at 8x the bitrate.
 
-Sensor reading: It reads the original serial data (9 bit) from the original sensor boards from USART2&3.
+*Sensor reading:* It reads the original serial data (9 bit) from the original sensor boards from USART2&3.
 
-Sensor control: Sensor data can control the PWM demands (power to the wheels).  Double tap on pads to enable.
+*Sensor control:* Sensor data can control the PWM demands (power to the wheels).  Double tap on pads to enable.
 
-Serial diagnostic control: Protocol.c implements a simple ASCII serial protocol which allows for manual control of the board.
+*Serial diagnostic control:* Protocol.c implements a simple ASCII serial protocol which allows for manual control of the board.
 
-Serial Machine control: Protocol.c implements the bones of an acked/checksummed serial protocol.  Embryonic as yet, but intended to be a generic control protocol for the hoverboard.
+*Serial Machine control:* Protocol.c implements the bones of an acked/checksummed serial protocol.  Embryonic as yet, but intended to be a generic control protocol for the hoverboard.
 
-PID Control: PID control loops for control of Speed (in mm/sec) and Position (in mm).  Currently separate control modes, and parameter need better tuning.
+*PID Control:* PID control loops for control of Speed (in mm/sec) and Position (in mm).  Currently separate control modes, and parameter need better tuning.
 
-Hall Interupts: used to read position and spped data.
+*Hall Interupts:* used to read Position and Speed data.
 
-Flash settings: implements a flash page available for efficitent storage of parameters (currently unused, but tested).
+*Flash settings:* implements a flash page available for efficitent storage of parameters (currently unused, but tested).
 
 Should work with original control settings (in config.h), but not tested...
 
-#RPiZeroW
-
+# RPiZeroW
+ 
 I installed an RPiZeroW inside the hoverboard, powered from a DC-DC convertor off 12v, adn connect to the hoverboard via an STLINK and a USB serial.
 
 To program the firmware from the RPiZeroW:
@@ -55,7 +55,33 @@ again, another script 't.sh'.
 
 For control, I will be running Node-Red.
 
+# Simple ASCII interface:
 
+*?* - show options
+
+*A n m l* -set buzzer (freq, patt, len_ms)
+
+*B* -toggle sensor Board control
+
+*E* - dEbug 'E'-disable all, EC-enable consoleLog, ES enable Scope\r\n"\
+
+*P* - power control - P -disablepoweroff, PE enable poweroff, Pn power off in n seconds
+
+*I* -enable Immediate commands:
+  
+  *W/S/A/D/X* -Faster/Slower/Lefter/Righter/DisableDrive
+  
+  *H/C/G/Q* -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode
+  
+  *N/O/R* - read seNsor data/toggle cOntrol/dangeR
+  
+*T* -send a machine test message A-ack N-nack T-test
+
+*?* -show this
+
+
+
+# Original readme from here on:
 
 This firmware is much better than the old one. tested up to 40A / 60V, no dead board so far :)
 
