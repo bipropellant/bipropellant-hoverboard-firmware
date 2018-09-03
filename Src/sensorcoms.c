@@ -276,6 +276,8 @@ int rx2posn[2];
 
 void sensor_read_data(){
     // read the last sensor message in the buffer
+    unsigned int time_ms = HAL_GetTick();
+
     int counts[2];
     unsigned char rx[2][20];
     for (int side = 0; side < 2; side++){
@@ -311,6 +313,15 @@ void sensor_read_data(){
             if ((sensor_data[side].AA_55 == 0x55) && (orgsw == 0xAA)){
                 sensor_data[side].Center = sensor_data[side].Angle;
                 sensor_data[side].sensor_ok = 10;
+                if (sensor_data[side].foottime_ms){
+                    int diff = time_ms - sensor_data[side].foottime_ms;
+                    if ((diff < 2000) && (diff > 250)){
+                        sensor_data[side].doubletap = 1;
+                    } else {
+                        sensor_data[side].doubletap = 0;
+                    }
+                }
+                sensor_data[side].foottime_ms = time_ms;
             }
             if (sensor_data[side].AA_55 == 0xAA){
                 if (sensor_data[side].sensor_ok > 0){

@@ -23,6 +23,11 @@
 
 #ifdef SOFTWARE_SERIAL
 
+
+//////////////////////////////////////////////////////////
+// init8ilaise timers and GPIOs
+void SoftwareSerialInit(void);
+
 //////////////////////////////////////////////////////////
 // get a character, -1 if none.
 short softwareserial_getrx(); 
@@ -37,6 +42,11 @@ int softwareserial_Send(unsigned char *data, int len);
 // use sparingly as this will pause main loop!!!
 // used in 'protocol' for long strings, like '?' response
 int softwareserial_Send_Wait(unsigned char *data, int len);
+
+
+
+
+void softwareserialRXInterrupt(void);
 
 #endif //SOFTWARE_SERIAL
 

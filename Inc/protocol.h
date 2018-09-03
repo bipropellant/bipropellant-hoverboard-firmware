@@ -30,6 +30,71 @@ void protocol_byte( unsigned char byte );
 /////////////////////////////////////////////////////////////////
 
 
+//// control structures used in firmware
+typedef struct tag_POSN_DATA {
+    // these get set
+    long wanted_posn_mm[2];
+
+
+    // configurations/constants
+    float posn_diff_mult; // gain on posn error > speed
+    int posn_max_speed; // max speed in this mode
+    int posn_min_speed; // minimum speed (to get wheels moving)
+    int posn_accelleration_factor; // 1/this = ammount of speed added each tick
+
+    int posn_max_diff_mm; // max posn error allowed
+    int posn_stop_speed;  // speed below which we stop
+
+
+    // just so it can be read back
+    long posn_diff_mm[2];
+    long posn_speed_demand[2];
+} POSN_DATA;
+
+extern POSN_DATA PosnData;
+
+typedef struct tag_SPEED_DATA {
+    // these get set
+    long wanted_speed_mm_per_sec[2];
+
+
+    // configurations/constants
+    float speed_diff_mult; // gain on posn error > speed
+
+    int speed_max_power; // max speed in this mode
+    int speed_min_power; // minimum speed (to get wheels moving)
+    int speed_accelleration_factor; // 1/this = ammount of power added each tick
+
+    int speed_max_diff_mm_per_sec; // max posn error allowed
+    int speed_stop_power;  // power below which we stop
+
+
+    // just so it can be read back
+    long speed_diff_mm_per_sec[2];
+    long speed_power_demand[2];
+} SPEED_DATA;
+
+extern SPEED_DATA SpeedData;
+
+typedef struct tag_PID_FLOATS{
+    float in;
+    float set;
+    float out;
+
+    float kp;
+    float ki;
+    float kd;
+} PID_FLOATS;
+
+
+
+
+extern int control_type;
+#define CONTROL_TYPE_NONE 0
+#define CONTROL_TYPE_POSITION 1
+#define CONTROL_TYPE_SPEED 2
+#define CONTROL_TYPE_PWM 3
+#define CONTROL_TYPE_MAX 4
 
 
 /////////////////////////////////////////////////////////////////

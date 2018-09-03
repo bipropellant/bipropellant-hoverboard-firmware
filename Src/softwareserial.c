@@ -19,6 +19,7 @@
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
+#include <memory.h>
 
 #ifdef SOFTWARE_SERIAL
 #include "softwareserial.h"
@@ -62,8 +63,8 @@ void SoftwareSerialReadTimer(void){
 }
 
 void SoftwareSerialInit(void){
-  memset(&softwareserialRXbuffer, 0, sizeof(softwareserialRXbuffer));
-  memset(&softwareserialTXbuffer, 0, sizeof(softwareserialTXbuffer));
+  memset((void *)&softwareserialRXbuffer, 0, sizeof(softwareserialRXbuffer));
+  memset((void *)&softwareserialTXbuffer, 0, sizeof(softwareserialTXbuffer));
 
   softwareserialRXbuffer.bit = -1; // awaiting start bit
   softwareserialTXbuffer.bit = -1; // awaiting start bit

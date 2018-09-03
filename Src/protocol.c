@@ -25,6 +25,8 @@
 #include "softwareserial.h"
 #include "bldc.h"
 
+#include <string.h>
+
 #ifdef INCLUDE_PROTOCOL
 
 //////////////////////////////////////////////////////////
@@ -82,8 +84,8 @@ extern SENSOR_DATA sensor_data[2];
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
-extern int speeds[2];
 extern int dspeeds[2];
+extern int pwms[2];
 
 
 
@@ -100,8 +102,38 @@ extern int enablescope; // enable scope on values
 int speedB = 0;
 int steerB = 0;
 
-int positional_control = 0;
-int wanted_posn_mm[2] = {0,0};
+int control_type = 0;
+char *control_types[]={
+    "none",
+    "Position",
+    "Speed (disabled)",
+    "PWM Direct"
+};
+
+POSN_DATA PosnData = {
+    {0, 0},
+    1.0,
+    200,
+    70,
+    5,
+    10,
+    15
+};
+
+
+SPEED_DATA SpeedData = {
+    {0, 0},
+    1.0, // multiplier
+    100, // max power INCREMENT
+    0,  // min power INCREMENT 
+    5,
+    10,
+    15
+};
+
+
+int speed_control = 0; // incicates protocol driven
+
 ///////////////////////////////////////////////
 
 
@@ -125,6 +157,11 @@ int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
 //////////////////////////////////////////////
 // variables and functions in support of parameters here
 //
+void protocol_send_nack();
+void protocol_send_ack();
+void protocol_send_test();
+
+
 // e.g. to gather two separate speed variables togther,
 typedef struct tag_SPEEDS{
     int speedl;
@@ -133,15 +170,48 @@ typedef struct tag_SPEEDS{
 SPEEDS speedsx = {0,0};
 
 // before read we call this...
-void getspeeds(void){
-    speedsx.speedl = speeds[0];
-    speedsx.speedr = speeds[1];
+void PreRead_getspeeds(void){
+    speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
+    speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
 }
 
 // after write we call this...
-void setspeeds(void){
-    speeds[0] = speedsx.speedl;
-    speeds[1] = speedsx.speedr;
+void PostWrite_setspeeds(void){
+    SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
+    SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
+}
+
+typedef struct tag_POSN {
+    long LeftAbsolute;
+    long RightAbsolute;
+    long LeftOffset;
+    long RightOffset;
+} POSN;
+
+POSN Position;
+
+void PreRead_getposnupdate(){
+    Position.LeftAbsolute = HallData[0].HallPosn_mm;
+    Position.LeftOffset = HallData[0].HallPosn_mm - HallData[0].HallPosn_mm_lastread;
+    Position.RightAbsolute = HallData[1].HallPosn_mm;
+    Position.RightOffset = HallData[1].HallPosn_mm - HallData[1].HallPosn_mm_lastread;
+}
+
+void PostWrite_setposnupdate(){
+    HallData[0].HallPosn_mm_lastread = Position.LeftAbsolute;
+    HallData[1].HallPosn_mm_lastread = Position.RightAbsolute; 
+}
+
+typedef struct tag_POSN_INCR {
+    long Left;
+    long Right;
+} POSN_INCR;
+
+POSN_INCR PositionIncr;
+
+void PostWrite_incrementposition(){
+    PosnData.wanted_posn_mm[0] += PositionIncr.Left; 
+    PosnData.wanted_posn_mm[1] += PositionIncr.Right; 
 }
 
 
@@ -171,18 +241,18 @@ typedef struct tag_PARAMSTAT {
 int version = 1;
 
 PARAMSTAT params[] = {
-    { 0x00, &version,           4,                          PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x00, &version,           sizeof(version),        PARAM_R,    NULL, NULL, NULL, NULL },
 #ifdef CONTROL_SENSOR
-    { 0x01, &sensor_data,   sizeof(sensor_data),   PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x01, &sensor_data,       sizeof(sensor_data),    PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, &HallData,           sizeof(HallData),           PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x02, (void *)&HallData,          sizeof(HallData),       PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
-    { 0x03, &speeds,             sizeof(speeds),           PARAM_RW,    getspeeds, NULL, NULL, setspeeds }
-
+    { 0x03, &SpeedData,         sizeof(SpeedData),      PARAM_RW,   PreRead_getspeeds, NULL, NULL, PostWrite_setspeeds },
+    { 0x04, &Position,          sizeof(Position),       PARAM_RW,   PreRead_getposnupdate, NULL, NULL, PostWrite_setposnupdate },
+    { 0x05, &PositionIncr,      sizeof(PositionIncr),   PARAM_RW,    NULL, NULL, NULL, PostWrite_incrementposition },
+    { 0x06, &PosnData,          sizeof(PosnData),       PARAM_RW,    NULL, NULL, NULL, NULL }
 };
-
-
 
 
 
@@ -320,26 +390,22 @@ int ascii_process_immediate(unsigned char byte){
         case 'w':
             processed = 1;
             if (!enable) { speedB = 0; steerB = 0; }
-            if (!sensor_stabilise)
-                sensor_control = 0;
             enable = 1;
             timeout = 0;
 
-            if (positional_control){
-                wanted_posn_mm[0] += dir * 100;
-                wanted_posn_mm[1] += dir * 100;
-                sprintf(ascii_out, "wanted_posn now %dmm %dmm\r\n", wanted_posn_mm[0], wanted_posn_mm[1]);
-            } else {
-                speedB += 10*dir;
-                if (sensor_stabilise){
-                    dspeeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    dspeeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    sprintf(ascii_out, "speed now %d, steer now %d, dspeedL %d, dspeedR %d\r\n", speedB, steerB, dspeeds[0], dspeeds[1]);
-                } else {
-                    speeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    speeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speeds[0], speeds[1]);
-                }
+            switch (control_type){
+                case CONTROL_TYPE_POSITION:
+                    PosnData.wanted_posn_mm[0] += dir * 100;
+                    PosnData.wanted_posn_mm[1] += dir * 100;
+                    sprintf(ascii_out, "wanted_posn now %ldmm %ldmm\r\n", PosnData.wanted_posn_mm[0], PosnData.wanted_posn_mm[1]);
+                    break;
+                case CONTROL_TYPE_SPEED:
+                case CONTROL_TYPE_PWM:
+                    speedB += 10*dir;
+                    SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
+                    break;
             }
             break;
 
@@ -350,25 +416,21 @@ int ascii_process_immediate(unsigned char byte){
         case 'd':
             processed = 1;
             if (!enable) { speedB = 0; steerB = 0; }
-            if (!sensor_stabilise)
-                sensor_control = 0;
             enable = 1;
             timeout = 0;
-            if (positional_control){
-                wanted_posn_mm[0] += dir * 100;
-                wanted_posn_mm[1] -= dir * 100;
-                sprintf(ascii_out, "wanted_posn now %dmm %dmm\r\n", wanted_posn_mm[0], wanted_posn_mm[1]);
-            } else {
-                steerB += 10*dir;
-                if (sensor_stabilise){
-                    dspeeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    dspeeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    sprintf(ascii_out, "speed now %d, steer now %d, dspeedL %d, dspeedR %d\r\n", speedB, steerB, dspeeds[0], dspeeds[1]);
-                } else {
-                    speeds[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    speeds[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    sprintf(ascii_out, "speed now %d, steer now %d, speedL %d, speedR %d\r\n", speedB, steerB, speeds[0], speeds[1]);
-                }
+            switch (control_type){
+                case CONTROL_TYPE_POSITION:
+                    PosnData.wanted_posn_mm[0] += dir * 100;
+                    PosnData.wanted_posn_mm[1] -= dir * 100;
+                    sprintf(ascii_out, "wanted_posn now %ldmm %ldmm\r\n", PosnData.wanted_posn_mm[0], PosnData.wanted_posn_mm[1]);
+                    break;
+                case CONTROL_TYPE_SPEED:
+                case CONTROL_TYPE_PWM:
+                    steerB += 10*dir;
+                    SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
+                    break;
             }
             break;
 
@@ -377,8 +439,12 @@ int ascii_process_immediate(unsigned char byte){
             processed = 1;
             speedB = 0; 
             steerB = 0;
-            speeds[0] = speeds[1] = speedB;
+            SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
+            HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
             dspeeds[0] = dspeeds[1] = speedB;
+            pwms[0] = pwms[1] = speedB;
+            PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+            PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
             sensor_control = 0;
             enable = 0;
             sprintf(ascii_out, "Stop set\r\n");
@@ -390,9 +456,14 @@ int ascii_process_immediate(unsigned char byte){
             enable_immediate = 0;
             speedB = 0; 
             steerB = 0;
-            speeds[0] = speeds[1] = speedB;
+            SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
+            HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
             dspeeds[0] = dspeeds[1] = speedB;
+            pwms[0] = pwms[1] = speedB;
+            PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+            PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
             sensor_control = 0;
+            control_type = 0;
             enable = 0;
             sprintf(ascii_out, "Immediate commands disabled\r\n");
             break;
@@ -409,8 +480,8 @@ int ascii_process_immediate(unsigned char byte){
 #ifdef HALL_INTERRUPTS
             processed = 1;
             sprintf(ascii_out, 
-                "L: P:%d(%dmm) S:%d(%dmm/s) dT:%u Skip:%u Dma:%d\r\n"\
-                "R: P:%d(%dmm) S:%d(%dmm/s) dT:%u Skip:%u Dma:%d\r\n",
+                "L: P:%ld(%ldmm) S:%ld(%ldmm/s) dT:%lu Skip:%lu Dma:%d\r\n"\
+                "R: P:%ld(%ldmm) S:%ld(%ldmm/s) dT:%lu Skip:%lu Dma:%d\r\n",
                 HallData[0].HallPosn, HallData[0].HallPosn_mm, HallData[0].HallSpeed, HallData[0].HallSpeed_mm_per_s, HallData[0].HallTimeDiff, HallData[0].HallSkipped, local_hall_params[0].dmacount,
                 HallData[1].HallPosn, HallData[1].HallPosn_mm, HallData[1].HallSpeed, HallData[1].HallSpeed_mm_per_s, HallData[1].HallTimeDiff, HallData[1].HallSkipped, local_hall_params[1].dmacount
             );
@@ -438,13 +509,13 @@ int ascii_process_immediate(unsigned char byte){
         case 'c':
             processed = 1;
             sprintf(ascii_out, 
-                "Bat: %.2fV(%d) Temp:%.1fC(%d)\r\n"
-                "L: Current:%.2fA Avg:%.2fA r1:%d r2:%d\r\n"\
-                "R: Current:%.2fA Avg:%.2fA r1:%d r2:%d\r\n",
-                electrical_measurements.batteryVoltage, electrical_measurements.bat_raw, 
-                electrical_measurements.board_temp_deg_c, electrical_measurements.board_temp_raw,
-                electrical_measurements.motors[0].dcAmps, electrical_measurements.motors[0].dcAmpsAvg, electrical_measurements.motors[0].r1, electrical_measurements.motors[0].r2,
-                electrical_measurements.motors[1].dcAmps, electrical_measurements.motors[1].dcAmpsAvg, electrical_measurements.motors[1].r1, electrical_measurements.motors[1].r2
+                "Bat: %dmV(%d) Temp:%dC(%d)\r\n"
+                "L: Current:%dmA Avg:%dmA r1:%d r2:%d\r\n"\
+                "R: Current:%dmA Avg:%dmA r1:%d r2:%d\r\n",
+                (int)(electrical_measurements.batteryVoltage*1000), electrical_measurements.bat_raw, 
+                (int)electrical_measurements.board_temp_deg_c, electrical_measurements.board_temp_raw,
+                (int)(electrical_measurements.motors[0].dcAmps*1000.0), (int)(electrical_measurements.motors[0].dcAmpsAvg*1000.0), electrical_measurements.motors[0].r1, electrical_measurements.motors[0].r2,
+                (int)(electrical_measurements.motors[1].dcAmps*1000.0), (int)(electrical_measurements.motors[1].dcAmpsAvg*1000.0), electrical_measurements.motors[1].r1, electrical_measurements.motors[1].r2
             );
             break;
 
@@ -454,20 +525,21 @@ int ascii_process_immediate(unsigned char byte){
             sprintf(ascii_out, 
                 "A:%04X B:%04X C:%04X D:%04X E:%04X\r\n"\
                 "Button: %d Charge:%d\r\n",
-                GPIOA->IDR, GPIOB->IDR, GPIOC->IDR, GPIOD->IDR, GPIOE->IDR,
-                (BUTTON_PORT->IDR & BUTTON_PIN)?1:0,
-                (CHARGER_PORT->IDR & CHARGER_PIN)?1:0
+                (int)GPIOA->IDR, (int)GPIOB->IDR, (int)GPIOC->IDR, (int)GPIOD->IDR, (int)GPIOE->IDR,
+                (int)(BUTTON_PORT->IDR & BUTTON_PIN)?1:0,
+                (int)(CHARGER_PORT->IDR & CHARGER_PIN)?1:0
             );
             break;
 
         case 'O':
-        case 'o':
-            positional_control ^= 1;
-            if (positional_control){
-                wanted_posn_mm[0] = HallData[0].HallPosn_mm;
-                wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+        case 'o':{
+            int control_old = control_type;
+            //stop all
+            ascii_process_immediate('x');
+            processed = 1;
+            control_type = (control_old+1) % CONTROL_TYPE_MAX;
+            sprintf(ascii_out, "control type now %d (%s)\r\n", control_type, control_types[control_type]);
             }
-            sprintf(ascii_out, "positional control now %d\r\n", positional_control);
             break;
 
         default:
@@ -500,6 +572,7 @@ void ascii_process_msg(char *cmd, int len){
 
     switch(cmd[0]){
         case '?':
+            // split, else too big for buffer
             snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "Hoverboard Mk1\r\n"\
                 "Cmds (press return after):\r\n"\
@@ -507,17 +580,24 @@ void ascii_process_msg(char *cmd, int len){
                 " B -toggle sensor Board control\r\n"\
                 " E - dEbug 'E'-disable all, EC-enable consoleLog, ES enable Scope\r\n"\
                 " P -power control\r\n"\
-                "  P -disablepoweroff\r\n"\
+                "  P -disablepoweroff\r\n");
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "  PE enable poweroff\r\n"\
                 "  Pn power off in n seconds\r\n"
                 " I -enable Immediate commands:\r\n"\
-                "   W/S/A/D/X -Faster/Slower/Lefter/Righter/DisableDrive\r\n"\
+                "   W/S/A/D/X -Faster/Slower/Lefter/Righter/DisableDrive\r\n");
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n"\
-                "   N - read seNsor data\r\n"
+                "   N/O/R - read seNsor data/toggle pOsitional control/dangeR\r\n"
                 " T -send a test message A-ack N-nack T-test\r\n"\
                 " ? -show this\r\n"
                 );
-            send_serial_data_wait(ascii_out, strlen(ascii_out));
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+            
             ascii_out[0] = 0;
             break;
 
@@ -543,6 +623,13 @@ void ascii_process_msg(char *cmd, int len){
         case 'B':
         case 'b':
             sensor_control ^= 1;
+            control_type = 0;
+            speedB = 0; 
+            steerB = 0;
+            SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
+            dspeeds[0] = dspeeds[1] = speedB;
+            PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+            PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
             sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
             break;
         case 'C':
@@ -608,7 +695,7 @@ void ascii_process_msg(char *cmd, int len){
                     sscanf(cmd+1, "%d", &s);
                     if (s >= 0){
                         if (s == 0){
-                            poweroff();
+                            powerofftimer = 1; // immediate
                         } else {
                             powerofftimer = ((s*1000)/DELAY_IN_MAIN_LOOP);
                         }
@@ -643,7 +730,7 @@ void ascii_process_msg(char *cmd, int len){
                         break;
                 }
                 // CR before prompt.... after message
-                sprintf(ascii_out, "\r\n", cmd[0]);
+                sprintf(ascii_out, "\r\n");
             }
             break;
 
@@ -669,17 +756,17 @@ void ascii_process_msg(char *cmd, int len){
 //
 void protocol_send_nack(){
     char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_NACK, 0 };
-    protocol_send(tmp);
+    protocol_send((PROTOCOL_MSG *)tmp);
 }
 
 void protocol_send_ack(){
     char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_ACK, 0 };
-    protocol_send(tmp);
+    protocol_send((PROTOCOL_MSG *)tmp);
 }
 
 void protocol_send_test(){
     char tmp[] = { PROTOCOL_SOM, 6, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't', 0 };
-    protocol_send(tmp);
+    protocol_send((PROTOCOL_MSG *)tmp);
 }
 
 

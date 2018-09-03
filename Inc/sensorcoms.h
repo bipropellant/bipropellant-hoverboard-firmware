@@ -43,6 +43,8 @@ void sensor_set_flash(int side, int count);
 void sensor_set_colour(int side, int colour);
 void sensor_send_lights();
 
+// the IRQ.
+extern void USART_sensor_IRQ(int port, USART_TypeDef *us);
 
 
 #pragma pack(push, 1)
@@ -61,6 +63,9 @@ typedef struct tag_sensor_data{
   int sensor_ok; // set to 10 when 55, decremented if not
   int read_timeout;
   short Center;
+
+  unsigned int foottime_ms; // last time we transitions this foot.
+  int doubletap; // indicates user tapped foot sensor twice in 2s
 } SENSOR_DATA;
 
 // bytes send to sensor.
@@ -107,9 +112,7 @@ void USART_sensor_addRXshort(int port, unsigned short value);
 short USART_sensor_getTXshort(int port);
 void USART_sensor_addTXshort(int port, unsigned short value);
 
-void myIRQ(int port, USART_TypeDef *us);
-void USART2_IRQHandler(void);
-void USART3_IRQHandler(void);
+
 /////////////////////////////////////////////////////////
 
 

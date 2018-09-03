@@ -5,6 +5,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "sensorcoms.h"
+#include "softwareserial.h"
 
 
 extern UART_HandleTypeDef huart2;
@@ -75,9 +76,9 @@ void consoleScope() {
 
   #if defined DEBUG_SERIAL_ASCII && defined DEBUG_SOFTWARE_SERIAL
     if (debug_out){
-      memset(uart_buf, 0, sizeof(uart_buf));
-      sprintf(uart_buf, "1:%i 2:%i 3:%i 4:%i 5:%i 6:%i 7:%i 8:%i\r\n", ch_buf[0], ch_buf[1], ch_buf[2], ch_buf[3], ch_buf[4], ch_buf[5], ch_buf[6], ch_buf[7]);
-      softwareserial_Send(uart_buf, strlen(uart_buf));
+      memset((void *)uart_buf, 0, sizeof(uart_buf));
+      sprintf((void *)uart_buf, "1:%i 2:%i 3:%i 4:%i 5:%i 6:%i 7:%i 8:%i\r\n", ch_buf[0], ch_buf[1], ch_buf[2], ch_buf[3], ch_buf[4], ch_buf[5], ch_buf[6], ch_buf[7]);
+      softwareserial_Send((unsigned char *)uart_buf, strlen((char*)uart_buf));
     }
   #endif
 

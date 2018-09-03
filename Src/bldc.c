@@ -247,8 +247,8 @@ void DMA1_Channel1_IRQHandler() {
   electrical_measurements.motors[1].dcAmps = dcrAmps;
 
 #ifdef DO_MEASUREMENTS    
-  electrical_measurements.motors[0].dcAmpsAvgAcc += abs(adc_buffer.dcl - offsetdcl);
-  electrical_measurements.motors[1].dcAmpsAvgAcc += abs(adc_buffer.dcl - offsetdcl);
+  electrical_measurements.motors[0].dcAmpsAvgAcc += ABS(adc_buffer.dcl - offsetdcl);
+  electrical_measurements.motors[1].dcAmpsAvgAcc += ABS(adc_buffer.dcl - offsetdcl);
 
   if (buzzerTimer % 1000 == 500) { // to save CPU time
     electrical_measurements.motors[0].dcAmpsAvg = electrical_measurements.motors[0].dcAmpsAvgAcc*MOTOR_AMP_CONV_DC_AMP/1000;

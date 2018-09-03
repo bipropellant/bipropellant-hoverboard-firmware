@@ -36,6 +36,7 @@
 #include "stm32f1xx_it.h"
 #include "config.h"
 #include "hallinterrupts.h"
+#include "softwareserial.h"
 
 
 extern DMA_HandleTypeDef hdma_i2c2_rx;
@@ -402,10 +403,12 @@ void EXTI15_10_IRQHandler(void)
 // UART interrupts
 
 // used to read original sensors - calls into sensorcoms.c
-#ifdef CONTROL_SENSOR
+#ifdef READ_SENSOR
+
 void USART2_IRQHandler(void){
     USART_sensor_IRQ(0, USART2);
 }
+
 
 void USART3_IRQHandler(void){
     USART_sensor_IRQ(1, USART3);

@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "config.h"
 #include "comms.h"
+#include <memory.h>
 
 #ifdef FLASH_STORAGE
 
@@ -19,7 +20,7 @@ extern volatile const uint8_t flash_data[];
 // data will be written 32 bit aligned, with the last long being a length.
 // everything AFTER will still be 0xFFFFFFFF
 int writeFlash( unsigned char *data, int len ){
-    char tmp[40];
+    char tmp[80];
     unsigned short *p = (unsigned short *)flash_data;
     int i = (flashlen/2) - 1;
     for (; i > 0; i--){
@@ -41,10 +42,10 @@ int writeFlash( unsigned char *data, int len ){
     if (flashlen-(i*2) < (((len+1)/2)*2+2)){
         // must erase flash page, and then write at start
         i = 0;
-        start = flash_data;
+        start = (unsigned char *)flash_data;
         FLASH_EraseInitTypeDef eraseinfo;
         eraseinfo.NbPages = ((flashlen+2047)/2048);
-        eraseinfo.PageAddress = flash_data;
+        eraseinfo.PageAddress = (unsigned long)flash_data;
         eraseinfo.TypeErase = FLASH_TYPEERASE_PAGES;
 
         uint32_t PageError = 0;
@@ -57,7 +58,7 @@ int writeFlash( unsigned char *data, int len ){
             return -1;
         }
 
-        sprintf(tmp, "\r\n\r\n\r\n\r\n ****** ERASED FLASH at %x (%d pages)", (int)eraseinfo.PageAddress, eraseinfo.NbPages); 
+        sprintf(tmp, "\r\n\r\n\r\n\r\n ****** ERASED FLASH at %lx (%ld pages)", eraseinfo.PageAddress, eraseinfo.NbPages); 
         consoleLog(tmp);
 
     }
@@ -80,7 +81,7 @@ int writeFlash( unsigned char *data, int len ){
     }
 
     // now finish with the len
-    HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, dest, len);
+    HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (unsigned long)dest, len);
     if (res != HAL_OK){
         sprintf(tmp, "\r\nwrite fail %d", (int)res); 
         consoleLog(tmp);
@@ -88,7 +89,7 @@ int writeFlash( unsigned char *data, int len ){
         return -1;
     }
 
-    sprintf(tmp, "\r\nwrote flash at %x len %d", start, len); 
+    sprintf(tmp, "\r\nwrote flash at %lx len %d", (unsigned long)start, len); 
     consoleLog(tmp);
     HAL_FLASH_Lock();
 
@@ -142,5 +143,61 @@ int flashposn(int *len){
     }
     return -1;
 }
+
+
+///////////////////////////////////////////////////
+// generic flash routines for firmware upgrade use
+// we have 256K, so pages 0-127, all 2k (0x800) long
+// note: this won't write across pages.  
+// design expected len value 128 or 256.
+// UNTESTED
+int writeflashchunk( void *addr, unsigned char *data, int len ){
+    char tmp[40];
+    // don't allow write in areas < page 64
+    if ((unsigned long)addr < (0x8000000 + 64*0x800))
+        return -1;
+
+    HAL_FLASH_Unlock();
+    // if at the start of a page, then erase....
+    if (!(((unsigned long)addr) % 0x800)){
+        //unsigned long start = addr;
+        FLASH_EraseInitTypeDef eraseinfo;
+        // only ever 1 page here
+        eraseinfo.NbPages = 1;
+        eraseinfo.PageAddress = (unsigned long)addr;
+        eraseinfo.TypeErase = FLASH_TYPEERASE_PAGES;
+
+        uint32_t PageError = 0;
+        HAL_StatusTypeDef res = HAL_FLASHEx_Erase(&eraseinfo, &PageError);
+
+        if (res != HAL_OK){
+            sprintf(tmp, "\r\nerase fail %d", (int)res); 
+            consoleLog(tmp);
+            HAL_FLASH_Lock();
+            return -1;
+        }
+    }
+
+    // write the data
+    // for all our longs to store
+    unsigned short *src = (unsigned short *) data;
+    unsigned short *dest = (unsigned short *)addr;
+    for (int j = 0; j < ((len+1)/2); j++){
+        HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (uint32_t)dest, (uint32_t)*src);
+
+        if (res != HAL_OK){
+            sprintf(tmp, "\r\nwrite fail %d", (int)res); 
+            consoleLog(tmp);
+            HAL_FLASH_Lock();
+            return -1;
+        }
+
+        dest++;
+        src++;
+    }
+
+    return len;
+}
+
 
 #endif

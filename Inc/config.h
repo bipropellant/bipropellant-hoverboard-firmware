@@ -124,16 +124,10 @@
 #define STEER_COEFFICIENT   0.5  // higher value == stronger. if you do not want any steering, set it to 0.0; 0.0 to 1.0
 #define INVERT_R_DIRECTION
 #define INVERT_L_DIRECTION
-#define BEEPS_BACKWARD 1    // 0 or 1
+#define BEEPS_BACKWARD 0    // 0 or 1
 
 //Turbo boost at high speeds while button1 is pressed:
-//#define ADDITIONAL_CODE \
-//if (button1 && speedR > 700) { /* field weakening at high speeds */ \
-//  weakl = cmd1 - 700; /* weak should never exceed 400 or 450 MAX!! */ \
-//  weakr = cmd1 - 700; } \
-//else { \
-//  weakl = 0; \
-//  weakr = 0; }
+//#define ADDITIONAL_CODE if (button1 && speedR > 700) { /* field weakening at high speeds */   weakl = cmd1 - 700; /* weak should never exceed 400 or 450 MAX!! */   weakr = cmd1 - 700; } else {   weakl = 0;   weakr = 0; }
 
 // ###### SIMPLE BOBBYCAR ######
 // for better bobbycar code see: https://github.com/larsmm/hoverboard-firmware-hack-bbcar
@@ -141,30 +135,11 @@
 // #define SPEED_COEFFICIENT   -1
 // #define STEER_COEFFICIENT   0
 
-// #define ADDITIONAL_CODE \
-if (button1 && speedR < 300) { /* drive backwards */ \
-  speedR = speedR * -0.2f;   \
-  speedL = speedL * -0.2f; } \
-else { \
-  direction = 1; } \
-if (button1 && speedR > 700) { /* field weakening at high speeds */ \
-  weakl = speedR - 600; /* weak should never exceed 400 or 450 MAX!! */ \
-  weakr = speedR - 600; } \
-else { \
-  weakl = 0; \
-  weakr = 0; }
 
 // ###### ARMCHAIR ######
 // #define FILTER              0.05
 // #define SPEED_COEFFICIENT   0.5
 // #define STEER_COEFFICIENT   -0.2
-
-// #define ADDITIONAL_CODE if (button1 && scale > 0.8) { /* field weakening at high speeds */ \
-  weakl = speedL - 600; /* weak should never exceed 400 or 450 MAX!! */ \
-  weakr = speedR - 600; } \
-else {\
-  weakl = 0;\
-  weakr = 0;
 
 // ############################### VALIDATE SETTINGS ###############################
 

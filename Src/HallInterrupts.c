@@ -69,25 +69,25 @@ volatile HALL_PARAMS local_hall_params[2];
 
 volatile long long timerwraps = 0;
 
-static float WheelSize_m = (DEFAULT_WHEEL_SIZE_INCHES * 0.0254);
+static float WheelSize_mm = (DEFAULT_WHEEL_SIZE_INCHES * 25.4);
 
 
 
 //////////////////////////////////////////////////////////////
 // intialisation for interrupts from hall sensor edges
 void HallInterruptinit(void){
-    memset(&HallData, 0, sizeof(HallData));
-    memset(&local_hall_params, 0, sizeof(local_hall_params));
+    memset((void *)&HallData, 0, sizeof(HallData));
+    memset((void *)&local_hall_params, 0, sizeof(local_hall_params));
     local_hall_params[0].direction = -1;
     local_hall_params[1].direction = 1;
 
     // overrides local fle default
     #ifdef WHEEL_SIZE_INCHES
-    WheelSize_m = (WHEEL_SIZE_INCHES * 0.0254);
+    WheelSize_mm = (WHEEL_SIZE_INCHES * 25.4);
     #endif
 
-    HallData[0].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
-    HallData[1].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
+    HallData[0].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
+    HallData[1].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
 
     // setup TIM4:
     __HAL_RCC_TIM4_CLK_ENABLE();
@@ -117,16 +117,16 @@ void HallInterruptinit(void){
 //////////////////////////////////////////////////////////////
 // optionaly change the wheel diameter fromt he default of 6.5" using inches
 void HallInterruptSetWheelDiameterInches(float inches){
-    WheelSize_m = inches * 0.0254;
-    HallData[0].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
-    HallData[1].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
+    WheelSize_mm = inches * 25.4;
+    HallData[0].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
+    HallData[1].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
 }
 //////////////////////////////////////////////////////////////
 // optionaly change the wheel diameter fromt he default of 6.5" using mm
 void HallInterruptSetWheelDiameterMM(float mm){
-    WheelSize_m = mm * 1000.0;
-    HallData[0].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
-    HallData[1].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
+    WheelSize_mm = mm;
+    HallData[0].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
+    HallData[1].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
 }
 
 //////////////////////////////////////////////////////////////
@@ -138,13 +138,13 @@ void HallInterruptReset(){
     HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
     HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
     __enable_irq();
-    memset(&HallData, 0, sizeof(HallData));
-    memset(&local_hall_params, 0, sizeof(local_hall_params));
+    memset((void *)&HallData, 0, sizeof(HallData));
+    memset((void *)&local_hall_params, 0, sizeof(local_hall_params));
     local_hall_params[0].direction = -1;
     local_hall_params[1].direction = 1;
 
-    HallData[0].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
-    HallData[1].HallPosnMultiplier = (float)((WheelSize_m*3.14159265359)/(float)HALL_POSN_PER_REV);
+    HallData[0].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
+    HallData[1].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
     HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
     HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
@@ -226,7 +226,7 @@ void HallInterruptsInterrupt(void){
                     local_hall_params[i].direction;
 
                 HallData[i].HallPosn = HallData[i].HallPosn + local_hall_params[i].incr;
-                HallData[i].HallPosn_mm = (int)((float)HallData[i].HallPosn)*HallData[i].HallPosnMultiplier*1000;
+                HallData[i].HallPosn_mm = (int)((float)HallData[i].HallPosn)*HallData[i].HallPosnMultiplier;
                 HallData[i].HallTimeDiff = (unsigned long)dt;
 
                 if (local_hall_params[i].incr != 0){
@@ -238,9 +238,9 @@ void HallInterruptsInterrupt(void){
                         local_hall_params[i].incr;
 
                     HallData[i].HallSpeed_mm_per_s = (int)
-                        (HallData[i].HallPosnMultiplier/(float)HallData[i].HallTimeDiff) * 
+                        ((float)(HallData[i].HallPosnMultiplier/(float)HallData[i].HallTimeDiff) * 
                         (float)local_hall_params[i].incr * 
-                        (float)HALL_INTERRUPT_TIMER_FREQ;
+                        (float)HALL_INTERRUPT_TIMER_FREQ);
                 } else {
                     // we missed a transition?
                     HallData[i].HallSkipped ++;
@@ -266,6 +266,7 @@ void TIM4_IRQHandler(void){
         for (int i = 0; i < 2; i++){
             if (local_hall_params[i].zerospeedtimeout <= 0){
                 HallData[i].HallSpeed = 0;
+                HallData[i].HallSpeed_mm_per_s = 0;
                 HallData[i].HallTimeDiff = 0;
             } else {
                 local_hall_params[i].zerospeedtimeout--;

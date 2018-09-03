@@ -31,6 +31,7 @@
 #include "hallinterrupts.h"
 #include "softwareserial.h"
 //#include "hd44780.h"
+#include "pid.h"
 
 #include <memory.h>
 
@@ -60,7 +61,7 @@ volatile Serialcommand command;
 
 #ifdef READ_SENSOR
 SENSOR_DATA last_sensor_data[2];
-int sensor_control = 1;
+int sensor_control = 0;
 int sensor_stabilise = 0;
 
 #endif
@@ -75,9 +76,6 @@ uint8_t button1, button2;
 
 int steer; // global variable for steering. -1000 to 1000
 int speed; // global variable for speed. -1000 to 1000
-
-extern int positional_control;
-extern int wanted_posn_mm[2];
 
 extern volatile int pwml;  // global variable for pwm left. -1000 to 1000
 extern volatile int pwmr;  // global variable for pwm right. -1000 to 1000
@@ -125,11 +123,29 @@ void poweroff() {
     }
 }
 
-int speeds[2] = {0, 0};
+// actually 'power'
+int pwms[2] = {0, 0};
+
 int dirs[2] = {-1, 1};
 int dspeeds[2] = {0,0};
 
+
+// setup pid control for left and right speed.
+pid_controller  PositionPid[2];
+PID_FLOATS PositionPidFloats[2] = {
+  { 0, 0, 0,   1.0, 0.5, 0.0 }, // 2nd 3 are kp, ki, kd
+  { 0, 0, 0,   1.0, 0.5, 0.0 }
+};
+pid_controller  SpeedPid[2];
+PID_FLOATS SpeedPidFloats[2] = {
+  { 0, 0, 0,   1.0, 0.0, 0.0 }, // 2nd 3 are kp, ki, kd
+  { 0, 0, 0,   1.0, 0.0, 0.0 }
+};
+
+
+
 int main(void) {
+  char tmp[200];
   HAL_Init();
   __HAL_RCC_AFIO_CLK_ENABLE();
   HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
@@ -181,7 +197,7 @@ int main(void) {
 
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
 
-  int lastspeeds[2] = {0, 0};
+  //int lastspeeds[2] = {0, 0};
 
   #ifdef READ_SENSOR
   // things we use in main loop for sensor control
@@ -248,6 +264,22 @@ int main(void) {
   
   unsigned int startup_counter = 0;
 
+  
+  memset(&PositionPid, 0, sizeof(PositionPid));
+  for (int i = 0; i < 2; i++){
+    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
+      PositionPidFloats[i].kp, PositionPidFloats[i].ki, PositionPidFloats[i].kd);
+  	pid_limits(&PositionPid[i], -200, 200);
+  	pid_auto(&PositionPid[i]);
+  }
+  memset(&SpeedPid, 0, sizeof(SpeedPid));
+  for (int i = 0; i < 2; i++){
+    pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set, 
+      SpeedPidFloats[i].kp, SpeedPidFloats[i].ki, SpeedPidFloats[i].kd);
+  	pid_limits(&SpeedPid[i], -600, 600);
+  	pid_auto(&SpeedPid[i]);
+  }
+
   while(1) {
     startup_counter++;
     HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
@@ -298,10 +330,21 @@ int main(void) {
       }
     #endif
 
-    #ifdef CONTROL_SENSOR
+    #ifdef READ_SENSOR
       if (!power_button_held){
         // read the last sensor message in the buffer
         sensor_read_data();
+
+        // tapp one or other side twice in 2s, with at least 1/4s between to
+        // enable hoverboard mode. 
+        if (CONTROL_TYPE_NONE == control_type){
+          if (sensor_data[0].doubletap || sensor_data[1].doubletap){
+            sensor_control = 1;
+            consoleLog("double tap -> hoverboard mode\r\n");
+            sensor_data[0].doubletap = 0;
+            sensor_data[1].doubletap = 0;
+          }
+        }
 
         if (electrical_measurements.charging){
           sensor_set_flash(0, 3);
@@ -330,11 +373,12 @@ int main(void) {
 
         // if roll is a large angle (>20 degrees)
         // then disable
+    #ifdef CONTROL_SENSOR
         if (sensor_control){
           if (rollhigh){
             enable = 0;
           } else {
-            if (sensor_data[0].sensor_ok && sensor_data[1].sensor_ok && !electrical_measurements.charging){
+            if ((sensor_data[0].sensor_ok || sensor_data[1].sensor_ok) && !electrical_measurements.charging){
               if (!OnBoard){
                 Center[0] = sensor_data[0].Angle;
                 Center[1] = sensor_data[1].Angle;
@@ -342,8 +386,12 @@ int main(void) {
               }
 
               for (int i = 0; i < 2; i++){
-                speeds[i] = CLAMP(dirs[i]*(sensor_data[i].Angle - Center[i])/3+dspeeds[i], -Clamp[i], Clamp[i]);
-                sensor_set_colour(i, SENSOR_COLOUR_YELLOW);
+                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].Angle - Center[i])/3+dspeeds[i], -Clamp[i], Clamp[i]);
+                if (sensor_data[i].sensor_ok){
+                  sensor_set_colour(i, SENSOR_COLOUR_YELLOW);
+                } else {
+                  sensor_set_colour(i, SENSOR_COLOUR_GREEN);
+                }
               }
               timeout = 0;
               enable = 1;
@@ -351,28 +399,89 @@ int main(void) {
             } else {
               OnBoard = 0;
               for (int i = 0; i < 2; i++){
-                speeds[i] = CLAMP(dirs[i]*(sensor_data[i].Angle)/scale[i]+dspeeds[i], -80, 80);
+                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].Angle)/scale[i]+dspeeds[i], -80, 80);
               }
               timeout = 0;
               enable = 1;
             }
           }
         } 
+    #endif // end if control_sensor
+ 
+        if (!sensor_control){
+          switch (control_type){
+            case CONTROL_TYPE_POSITION:
+              for (int i = 0; i < 2; i++){
+                if (pid_need_compute(&PositionPid[i])) {
+                  // Read process feedback
+                  PositionPidFloats[i].set = PosnData.wanted_posn_mm[i];
+                  PositionPidFloats[i].in = HallData[i].HallPosn_mm;
+                  // Compute new PID output value
+                  pid_compute(&PositionPid[i]);
+                  //Change actuator value
+                  int pwm = PositionPidFloats[i].out;
+                  pwms[i] = pwm;
+                  if (i == 0){
+                    sprintf(tmp, "%d:%d\r\n", i, pwm);
+                    consoleLog(tmp);
+                  }
+                }
 
-        if (positional_control && !sensor_control){
-          for (int i = 0; i < 2; i++){
-            int posn_diff_mm = wanted_posn_mm[i] - HallData[i].HallPosn_mm;
-            int abs_posn_diff = ABS(posn_diff_mm);
-            int speed = CLAMP(((posn_diff_mm*60)/100), -200, 200);
-            // assert minimum speeds
-            if (speed > 0 && speed < 60) speed = 60;
-            if (speed < 0 && speed > -60) speed = -60;
+#ifdef NONEWPID
+                PosnData.posn_diff_mm[i] = PosnData.wanted_posn_mm[i] - HallData[i].HallPosn_mm;
+                long abs_posn_diff = ABS(PosnData.posn_diff_mm[i]);
+                float speed = CLAMP((float)PosnData.posn_diff_mm[i]*PosnData.posn_diff_mult, -PosnData.posn_max_speed, PosnData.posn_max_speed);
+                PosnData.posn_speed_demand[i] = (int) speed;
+                // assert minimum speeds
+                if (speed > 0 && speed < PosnData.posn_min_speed) speed = PosnData.posn_min_speed;
+                if (speed < 0 && speed > -PosnData.posn_min_speed) speed = -PosnData.posn_min_speed;
 
-            // we raise/lower speed over 5 clicks
-            speeds[i] += (speed - speeds[i])/5;
-            if (abs_posn_diff < 10){
-              if (ABS(speeds[i]) < 15) speeds[i] = 0;
-            }
+                // we raise/lower speed over 5 clicks
+                pwms[i] += ((int)speed - pwms[i])/PosnData.posn_accelleration_factor;
+                if (abs_posn_diff < PosnData.posn_max_diff_mm){
+                  if (ABS(pwms[i]) < PosnData.posn_stop_speed) pwms[i] = 0;
+                }
+#endif              
+              }
+              break;
+            case CONTROL_TYPE_SPEED:
+              for (int i = 0; i < 2; i++){
+                if (pid_need_compute(&SpeedPid[i])) {
+                  // Read process feedback
+                  SpeedPidFloats[i].set = SpeedData.wanted_speed_mm_per_sec[i];
+                  SpeedPidFloats[i].in = HallData[i].HallSpeed_mm_per_s;
+                  // Compute new PID output value
+                  pid_compute(&SpeedPid[i]);
+                  //Change actuator value
+                  int pwm = SpeedPidFloats[i].out;
+                  pwms[i] = pwm;
+                  if (i == 0){
+                    sprintf(tmp, "%d:%d\r\n", i, pwm);
+                    consoleLog(tmp);
+                  }
+                }
+              }
+
+#ifdef DISBALEITFORNOW            
+              for (int i = 0; i < 2; i++){
+                SpeedData.speed_diff_mm_per_sec[i] = SpeedData.wanted_speed_mm_per_sec[i] - HallData[i].HallSpeed_mm_per_s;
+                long abs_speed_diff = ABS(SpeedData.speed_diff_mm_per_sec[i]);
+                float power = CLAMP((float)SpeedData.speed_diff_mm_per_sec[i]*SpeedData.speed_diff_mult, -SpeedData.speed_max_power, SpeedData.speed_max_power);
+                SpeedData.speed_power_demand[i] = (int) power;
+                // assert minimum speeds
+                if (power > 0 && power < SpeedData.speed_min_power) power = SpeedData.speed_min_power;
+                if (power < 0 && power > -SpeedData.speed_min_power) power = -SpeedData.speed_min_power;
+
+                // we raise/lower speed over 5 clicks
+                pwms[i] += ((int)power)/SpeedData.speed_accelleration_factor;
+              }
+#endif              
+              break;
+            case CONTROL_TYPE_PWM:
+              for (int i = 0; i < 2; i++){
+                pwms[i] = SpeedData.wanted_speed_mm_per_sec[i];
+              }
+              break;
           }
         }
       }
@@ -389,8 +498,8 @@ int main(void) {
 
 
       // ####### MIXER #######
-      speeds[0] = CLAMP(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT, -1000, 1000);
-      speeds[1] = CLAMP(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT, -1000, 1000);
+      pwms[0] = CLAMP(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT, -1000, 1000);
+      pwms[1] = CLAMP(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT, -1000, 1000);
 
     #endif
 
@@ -399,19 +508,19 @@ int main(void) {
     #endif
 
     #ifdef INVERT_R_DIRECTION
-      pwmr = speeds[1];
+      pwmr = pwms[1];
     #else
-      pwmr = -speeds[1];
+      pwmr = -pwms[1];
     #endif
     #ifdef INVERT_L_DIRECTION
-      pwml = -speeds[0];
+      pwml = -pwms[0];
     #else
-      pwml = speeds[0];
+      pwml = pwms[0];
     #endif
 
-    for (int i = 0; i < 2; i++){
-      lastspeeds[i] = speeds[i];
-    }
+//    for (int i = 0; i < 2; i++){
+//      lastspeeds[i] = pwms[i];
+//    }
 
     if ((debug_counter++) % 100 == 0) {
       // ####### CALC BOARD TEMPERATURE #######
@@ -434,8 +543,8 @@ int main(void) {
         setScopeChannel(1, -(int)sensor_data[1].Angle);  // 2: ADC2
       #endif
 
-      setScopeChannel(2, (int)speeds[1]);  // 3: output speed: 0-1000
-      setScopeChannel(3, (int)speeds[0]);  // 4: output speed: 0-1000
+      setScopeChannel(2, (int)pwms[1]);  // 3: output speed: 0-1000
+      setScopeChannel(3, (int)pwms[0]);  // 4: output speed: 0-1000
       setScopeChannel(4, (int)adc_buffer.batt1);  // 5: for battery voltage calibration
       setScopeChannel(5, (int)(batteryVoltage * 100.0f));  // 6: for verifying battery voltage calibration
       setScopeChannel(6, (int)board_temp_adc_filtered);  // 7: for board temperature calibration
@@ -492,7 +601,7 @@ int main(void) {
     }
 
     // ####### BEEP AND EMERGENCY POWEROFF #######
-    if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && ABS(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && abs(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3
+    if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && ABS(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && ABS(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3
       poweroff();
     } else if (TEMP_WARNING_ENABLE && board_temp_deg_c >= TEMP_WARNING) {  // beep if mainboard gets hot
       buzzerFreq = 4;
@@ -517,7 +626,7 @@ int main(void) {
 
 
     // ####### INACTIVITY TIMEOUT #######
-    if (abs(speeds[0]) > 50 || abs(speeds[1]) > 50) {
+    if (ABS(pwms[0]) > 50 || ABS(pwms[1]) > 50) {
       inactivity_timeout_counter = 0;
     } else {
       inactivity_timeout_counter ++;
