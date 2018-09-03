@@ -1,3 +1,62 @@
+# HEAVILY MODIFIED
+
+This firmware is a heavily modified version of https://github.com/NiklasFauth/hoverboard-firmware-hack which allows you to use the hoverboard AS A HOVERBOARD, as well as external serial control.
+
+My thoughts were:
+
+a/ to make it work as a hoverboard again. Done.
+
+b/ to provide serial control, but not via USART2/3. Done.  Machine protocol needs further work (like and example javascript driver).
+
+c/ to include a RPi ZeroW inside the hoverboard. Done.
+
+
+Added:
+
+Software serial: This allows you to use ANY GPIO pins (with modififcation) as serial.  Probably best to stay at 9600 baud, as the receive interrupt is serviced at 8x the bitrate.
+
+Sensor reading: It reads the original serial data (9 bit) from the original sensor boards from USART2&3.
+
+Sensor control: Sensor data can control the PWM demands (power to the wheels).  Double tap on pads to enable.
+
+Serial diagnostic control: Protocol.c implements a simple ASCII serial protocol which allows for manual control of the board.
+
+Serial Machine control: Protocol.c implements the bones of an acked/checksummed serial protocol.  Embryonic as yet, but intended to be a generic control protocol for the hoverboard.
+
+PID Control: PID control loops for control of Speed (in mm/sec) and Position (in mm).  Currently separate control modes, and parameter need better tuning.
+
+Hall Interupts: used to read position and spped data.
+
+Flash settings: implements a flash page available for efficitent storage of parameters (currently unused, but tested).
+
+Should work with original control settings (in config.h), but not tested...
+
+#RPiZeroW
+
+I installed an RPiZeroW inside the hoverboard, powered from a DC-DC convertor off 12v, adn connect to the hoverboard via an STLINK and a USB serial.
+
+To program the firmware from the RPiZeroW:
+
+Install openocd (sudo apt-get install openocd).
+
+```
+openocd -f /usr/share/openocd/scripts/interface/stlink-v2.cfg -f /usr/share/openocd/scripts/target/stm32f1x.cfg -c "program firmware.bin 0x08000000" -c "halt 100" -c "reset"
+```
+
+(I made a script flash.sh, and copy the firmware.bin over with winscp over ssh).
+
+To connect to the serial, I use a USB serial dongle, and use 
+
+```
+screen /dev/ttyUSB0
+```
+
+again, another script 't.sh'.
+
+For control, I will be running Node-Red.
+
+
+
 This firmware is much better than the old one. tested up to 40A / 60V, no dead board so far :)
 
 # hoverboard-firmware-hack
