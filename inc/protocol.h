@@ -68,6 +68,8 @@ typedef struct tag_SPEED_DATA {
     int speed_max_diff_mm_per_sec; // max posn error allowed
     int speed_stop_power;  // power below which we stop
 
+    int speed_minimum_speed; // below this, we don't ask it to do anything
+
 
     // just so it can be read back
     long speed_diff_mm_per_sec[2];
@@ -84,6 +86,8 @@ typedef struct tag_PID_FLOATS{
     float kp;
     float ki;
     float kd;
+
+    int count; // - used in averaging speed between pid loops
 } PID_FLOATS;
 
 

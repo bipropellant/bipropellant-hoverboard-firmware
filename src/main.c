@@ -133,16 +133,36 @@ int dspeeds[2] = {0,0};
 // setup pid control for left and right speed.
 pid_controller  PositionPid[2];
 PID_FLOATS PositionPidFloats[2] = {
-  { 0, 0, 0,   1.0, 0.5, 0.0 }, // 2nd 3 are kp, ki, kd
-  { 0, 0, 0,   1.0, 0.5, 0.0 }
+  { 0, 0, 0,   0.5, 0.5, 0.0,   0 }, // 2nd 3 are kp, ki, kd
+  { 0, 0, 0,   0.5, 0.5, 0.0,   0 }
 };
 pid_controller  SpeedPid[2];
 PID_FLOATS SpeedPidFloats[2] = {
-  { 0, 0, 0,   1.0, 0.0, 0.0 }, // 2nd 3 are kp, ki, kd
-  { 0, 0, 0,   1.0, 0.0, 0.0 }
+  { 0, 0, 0,   0.2, 0.1, 0.0,   0 }, // 2nd 3 are kp, ki, kd
+  { 0, 0, 0,   0.2, 0.1, 0.0,   0 }
 };
 
+void init_PID_control(){
+  memset(&PositionPid, 0, sizeof(PositionPid));
+  for (int i = 0; i < 2; i++){
+    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
+      PositionPidFloats[i].kp, PositionPidFloats[i].ki, PositionPidFloats[i].kd);
 
+    // maximum pwm outputs for positional control; limits speed
+  	pid_limits(&PositionPid[i], -200, 200);
+  	pid_auto(&PositionPid[i]);
+  }
+  memset(&SpeedPid, 0, sizeof(SpeedPid));
+  for (int i = 0; i < 2; i++){
+    pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set, 
+      SpeedPidFloats[i].kp, SpeedPidFloats[i].ki, SpeedPidFloats[i].kd);
+
+    // maximum increment to pwm outputs for speed control; limits changes in speed (accelleration)
+  	pid_limits(&SpeedPid[i], -20, 20);
+  	pid_auto(&SpeedPid[i]);
+  }
+
+}
 
 int main(void) {
   char tmp[200];
@@ -188,6 +208,8 @@ int main(void) {
   // initialise to 9 bit interrupt driven comms on USART 2 & 3
   sensor_USART_init();
   #endif
+
+  init_PID_control();
 
   for (int i = 8; i >= 0; i--) {
     buzzerFreq = i;
@@ -264,21 +286,8 @@ int main(void) {
   
   unsigned int startup_counter = 0;
 
-  
-  memset(&PositionPid, 0, sizeof(PositionPid));
-  for (int i = 0; i < 2; i++){
-    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
-      PositionPidFloats[i].kp, PositionPidFloats[i].ki, PositionPidFloats[i].kd);
-  	pid_limits(&PositionPid[i], -200, 200);
-  	pid_auto(&PositionPid[i]);
-  }
-  memset(&SpeedPid, 0, sizeof(SpeedPid));
-  for (int i = 0; i < 2; i++){
-    pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set, 
-      SpeedPidFloats[i].kp, SpeedPidFloats[i].ki, SpeedPidFloats[i].kd);
-  	pid_limits(&SpeedPid[i], -600, 600);
-  	pid_auto(&SpeedPid[i]);
-  }
+  int last_control_type = CONTROL_TYPE_NONE;
+
 
   while(1) {
     startup_counter++;
@@ -409,6 +418,13 @@ int main(void) {
     #endif // end if control_sensor
  
         if (!sensor_control){
+
+          if (last_control_type != control_type){
+            // nasty things happen if it's not re-initialised
+            init_PID_control();
+            last_control_type = control_type;
+          }
+
           switch (control_type){
             case CONTROL_TYPE_POSITION:
               for (int i = 0; i < 2; i++){
@@ -426,56 +442,35 @@ int main(void) {
                     consoleLog(tmp);
                   }
                 }
-
-#ifdef NONEWPID
-                PosnData.posn_diff_mm[i] = PosnData.wanted_posn_mm[i] - HallData[i].HallPosn_mm;
-                long abs_posn_diff = ABS(PosnData.posn_diff_mm[i]);
-                float speed = CLAMP((float)PosnData.posn_diff_mm[i]*PosnData.posn_diff_mult, -PosnData.posn_max_speed, PosnData.posn_max_speed);
-                PosnData.posn_speed_demand[i] = (int) speed;
-                // assert minimum speeds
-                if (speed > 0 && speed < PosnData.posn_min_speed) speed = PosnData.posn_min_speed;
-                if (speed < 0 && speed > -PosnData.posn_min_speed) speed = -PosnData.posn_min_speed;
-
-                // we raise/lower speed over 5 clicks
-                pwms[i] += ((int)speed - pwms[i])/PosnData.posn_accelleration_factor;
-                if (abs_posn_diff < PosnData.posn_max_diff_mm){
-                  if (ABS(pwms[i]) < PosnData.posn_stop_speed) pwms[i] = 0;
-                }
-#endif              
               }
               break;
             case CONTROL_TYPE_SPEED:
               for (int i = 0; i < 2; i++){
+                SpeedPidFloats[i].in += HallData[i].HallSpeed_mm_per_s;
+                SpeedPidFloats[i].count++;
                 if (pid_need_compute(&SpeedPid[i])) {
                   // Read process feedback
-                  SpeedPidFloats[i].set = SpeedData.wanted_speed_mm_per_sec[i];
-                  SpeedPidFloats[i].in = HallData[i].HallSpeed_mm_per_s;
+
+                  // won't work below about 45
+                  if (SpeedData.wanted_speed_mm_per_sec[i] < SpeedData.speed_minimum_speed){
+                    SpeedPidFloats[i].set = 0;
+                  } else {  
+                    SpeedPidFloats[i].set = SpeedData.wanted_speed_mm_per_sec[i];
+                  }
+                  SpeedPidFloats[i].in = SpeedPidFloats[i].in/(float)SpeedPidFloats[i].count;
+                  SpeedPidFloats[i].count = 0;
                   // Compute new PID output value
                   pid_compute(&SpeedPid[i]);
                   //Change actuator value
                   int pwm = SpeedPidFloats[i].out;
-                  pwms[i] = pwm;
+                  pwms[i] = 
+                    CLAMP(pwms[i] + pwm, -SpeedData.speed_max_power, SpeedData.speed_max_power);
                   if (i == 0){
-                    sprintf(tmp, "%d:%d\r\n", i, pwm);
+                    sprintf(tmp, "%d:%d(%d) S:%d H:%d\r\n", i, pwms[i], pwm, (int)SpeedPidFloats[i].set, (int)SpeedPidFloats[i].in);
                     consoleLog(tmp);
                   }
                 }
               }
-
-#ifdef DISBALEITFORNOW            
-              for (int i = 0; i < 2; i++){
-                SpeedData.speed_diff_mm_per_sec[i] = SpeedData.wanted_speed_mm_per_sec[i] - HallData[i].HallSpeed_mm_per_s;
-                long abs_speed_diff = ABS(SpeedData.speed_diff_mm_per_sec[i]);
-                float power = CLAMP((float)SpeedData.speed_diff_mm_per_sec[i]*SpeedData.speed_diff_mult, -SpeedData.speed_max_power, SpeedData.speed_max_power);
-                SpeedData.speed_power_demand[i] = (int) power;
-                // assert minimum speeds
-                if (power > 0 && power < SpeedData.speed_min_power) power = SpeedData.speed_min_power;
-                if (power < 0 && power > -SpeedData.speed_min_power) power = -SpeedData.speed_min_power;
-
-                // we raise/lower speed over 5 clicks
-                pwms[i] += ((int)power)/SpeedData.speed_accelleration_factor;
-              }
-#endif              
               break;
             case CONTROL_TYPE_PWM:
               for (int i = 0; i < 2; i++){

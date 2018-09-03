@@ -404,6 +404,8 @@ void EXTI15_10_IRQHandler(void)
 
 // used to read original sensors - calls into sensorcoms.c
 #ifdef READ_SENSOR
+// declare it here; why does it not come in with the header?
+void USART_sensor_IRQ(int port, USART_TypeDef *us);
 
 void USART2_IRQHandler(void){
     USART_sensor_IRQ(0, USART2);

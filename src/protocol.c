@@ -124,11 +124,13 @@ POSN_DATA PosnData = {
 SPEED_DATA SpeedData = {
     {0, 0},
     1.0, // multiplier
-    100, // max power INCREMENT
-    0,  // min power INCREMENT 
+    600, // max power
+    -600,  // min power 
     5,
     10,
-    15
+    15,
+
+    40 // minimum mm/s which we can ask for
 };
 
 
