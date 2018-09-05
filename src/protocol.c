@@ -25,7 +25,10 @@
 #include "softwareserial.h"
 #include "bldc.h"
 
+#include "flashcontent.h"
+
 #include <string.h>
+#include <stdlib.h>
 
 #ifdef INCLUDE_PROTOCOL
 
@@ -217,6 +220,19 @@ void PostWrite_incrementposition(){
 }
 
 
+void PostWrite_writeflash(){
+    if (FlashContent.magic != CURRENT_MAGIC){
+        consoleLog("incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
+        FlashContent.magic = CURRENT_MAGIC;
+        return;
+    }
+    writeFlash( &FlashContent, sizeof(FlashContent) );
+    consoleLog("wrote flash\r\n");
+}
+
+void PostWrite_PID(){
+    change_PID_constants();
+}
 
 ///////////////////////////////////////////////////
 // structure used to gather variables we want to read/write.
@@ -226,6 +242,9 @@ void PostWrite_incrementposition(){
 #pragma pack(push, 1)
 typedef struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
+    char *description;          // if non-null, description
+    char *uistr;          // if non-null, used in ascii protocol to adjust with f<str>num<cr>
+    char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
     char len;               // length of value
     char rw;                // PARAM_R or PARAM_RW
@@ -238,22 +257,38 @@ typedef struct tag_PARAMSTAT {
 #pragma pack(pop)
 ///////////////////////////////////////////////////
 
-
+#define UI_NONE 0
+#define UI_SHORT 1
 
 int version = 1;
 
+// NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
-    { 0x00, &version,           sizeof(version),        PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x00, NULL, NULL, UI_NONE, &version,           sizeof(version),        PARAM_R,    NULL, NULL, NULL, NULL },
 #ifdef CONTROL_SENSOR
-    { 0x01, &sensor_data,       sizeof(sensor_data),    PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x01, NULL, NULL, UI_NONE, &sensor_data,       sizeof(sensor_data),    PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, (void *)&HallData,          sizeof(HallData),       PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x02, NULL, NULL, UI_NONE, (void *)&HallData,          sizeof(HallData),       PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
-    { 0x03, &SpeedData,         sizeof(SpeedData),      PARAM_RW,   PreRead_getspeeds, NULL, NULL, PostWrite_setspeeds },
-    { 0x04, &Position,          sizeof(Position),       PARAM_RW,   PreRead_getposnupdate, NULL, NULL, PostWrite_setposnupdate },
-    { 0x05, &PositionIncr,      sizeof(PositionIncr),   PARAM_RW,    NULL, NULL, NULL, PostWrite_incrementposition },
-    { 0x06, &PosnData,          sizeof(PosnData),       PARAM_RW,    NULL, NULL, NULL, NULL }
+    { 0x03, NULL, NULL, UI_NONE, &SpeedData,         sizeof(SpeedData),      PARAM_RW,   PreRead_getspeeds, NULL, NULL, PostWrite_setspeeds },
+    { 0x04, NULL, NULL, UI_NONE, &Position,          sizeof(Position),       PARAM_RW,   PreRead_getposnupdate, NULL, NULL, PostWrite_setposnupdate },
+    { 0x05, NULL, NULL, UI_NONE, &PositionIncr,      sizeof(PositionIncr),   PARAM_RW,    NULL, NULL, NULL, PostWrite_incrementposition },
+    { 0x06, NULL, NULL, UI_NONE, &PosnData,          sizeof(PosnData),       PARAM_RW,    NULL, NULL, NULL, NULL },
+
+    { 0x80, "flash magic", "m", UI_SHORT, &FlashContent.magic, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
+
+    { 0x82, "posn kp x 100", "pkp", UI_SHORT, &FlashContent.PositionKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x81, "posn ki x 100", "pki", UI_SHORT, &FlashContent.PositionKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Position
+    { 0x83, "posn kd x 100", "pkd", UI_SHORT, &FlashContent.PositionKdx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x84, "posn pwm lim", "pl", UI_SHORT, &FlashContent.PositionPWMLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 200
+
+    { 0x86, "speed kp x 100", "skp", UI_SHORT, &FlashContent.SpeedKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x85, "speed ki x 100", "ski", UI_SHORT, &FlashContent.SpeedKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Speed
+    { 0x87, "speed kd x 100", "skd", UI_SHORT, &FlashContent.SpeedKdx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x88, "speed pwm incr lim", "sl", UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 20
+
+    { 0xA0, "hoverboard enable", "he", UI_SHORT, &FlashContent.HoverboardEnable, sizeof(short), PARAM_RW, NULL, NULL, NULL, NULL } // e.g. 20
 };
 
 
@@ -345,7 +380,7 @@ int enable_immediate = 0;
 void ascii_byte( unsigned char byte ){
     int skipchar = 0;
     // only if no characters buffered, process single keystorkes
-    if (enable_immediate){
+    if (enable_immediate && (ascii_posn == 0)){
         // returns 1 if char should not be kept in command buffer
         skipchar = ascii_process_immediate(byte);
     }
@@ -587,7 +622,8 @@ void ascii_process_msg(char *cmd, int len){
 
             snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "  PE enable poweroff\r\n"\
-                "  Pn power off in n seconds\r\n"
+                "  Pn power off in n seconds\r\n" \
+                "  Pr software reset\r\n" \
                 " I -enable Immediate commands:\r\n"\
                 "   W/S/A/D/X -Faster/Slower/Lefter/Righter/DisableDrive\r\n");
             send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
@@ -596,10 +632,26 @@ void ascii_process_msg(char *cmd, int len){
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n"\
                 "   N/O/R - read seNsor data/toggle pOsitional control/dangeR\r\n"
                 " T -send a test message A-ack N-nack T-test\r\n"\
-                " ? -show this\r\n"
+                " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
+                "  Fss - print, Fss<n> - set\r\n"
                 );
             send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
             
+            for (int i = 0; i < sizeof(params)/sizeof(params[0]); i++){
+                if (params[i].uistr){
+                    snprintf(ascii_out, sizeof(ascii_out)-1, 
+                        "  %s - F%s<n>\r\n", 
+                            (params[i].description)?params[i].description:"", 
+                            params[i].uistr
+                        );
+                    send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                }
+            }
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
+                " ? -show this\r\n"
+                );
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
             ascii_out[0] = 0;
             break;
 
@@ -656,6 +708,85 @@ void ascii_process_msg(char *cmd, int len){
             }
             sprintf(ascii_out, "debug_out now %d\r\nenablescope now %d\r\n", debug_out, enablescope);
             break;
+        case 'F':
+        case 'f': // setting any parameter marked with uistr
+            if (len == 1){
+                sprintf(ascii_out, "no flash var given\r\n");
+            } else {
+                if ((cmd[1] | 0x20) == 'i'){ // initilaise
+                    memset(&FlashContent, 0, sizeof(FlashContent));
+                    memcpy(&FlashContent, &FlashDefaults, (sizeof(FlashContent) < sizeof(FlashDefaults))?sizeof(FlashContent) : sizeof(FlashDefaults)) ;
+                    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
+                    sprintf(ascii_out, "Flash initiailised\r\n");
+                } else {
+                    if ((cmd[1] | 0x20) == 'a'){
+                        // read all
+                        for (int i = 0; i < sizeof(params)/sizeof(params[0]); i++){
+                            if (params[i].uistr){
+                                switch (params[i].ui_type){
+                                    case UI_SHORT:
+                                        // read it
+                                        if (params[i].preread) params[i].preread();
+                                        sprintf(ascii_out, "%s(%s): %d\r\n",
+                                                (params[i].description)?params[i].description:"", 
+                                                params[i].uistr,
+                                                (int)*(short *)params[i].ptr);
+                                        send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                                        ascii_out[0] = 0; // don't print last one twice
+                                        if (params[i].postread) params[i].postread();
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                        }
+                    } else {
+                        int i = 0;
+                        int count = sizeof(params)/sizeof(params[0]);
+                        for (i = 0; i < count; i++){
+                            if (params[i].uistr){
+                                if (!strncmp(params[i].uistr, &cmd[1], strlen(params[i].uistr))){
+                                    switch (params[i].ui_type){
+                                        case UI_SHORT:
+                                            // if number supplied, write
+                                            if ((cmd[1+strlen(params[i].uistr)] >= '0') && (cmd[1+strlen(params[i].uistr)] <= '9')){
+                                                if (params[i].prewrite) params[i].prewrite();
+                                                *((short *)params[i].ptr) = atoi(&cmd[1+strlen(params[i].uistr)]);
+                                                if (params[i].postwrite) params[i].postwrite();
+                                                sprintf(ascii_out, "flash var %s(%s) now %d\r\n", 
+                                                    (params[i].description)?params[i].description:"", 
+                                                    params[i].uistr,
+                                                    (int)*(short *)params[i].ptr);
+                                            } else {
+                                                // read it
+                                                if (params[i].preread) params[i].preread();
+                                                sprintf(ascii_out, "%s(%s): %d\r\n",
+                                                        (params[i].description)?params[i].description:"", 
+                                                        params[i].uistr,
+                                                        (int)*(short *)params[i].ptr
+                                                );
+                                                send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                                                if (params[i].postread) params[i].postread();
+                                            }
+                                            break;
+                                        default:
+                                            sprintf(ascii_out, "flash var %s(%s) unsupported type\r\n",
+                                                    (params[i].description)?params[i].description:"", 
+                                                    params[i].uistr
+                                            );
+                                            break;
+                                    }
+                                    break; // found our param, now leave
+                                }
+                            }
+                        }
+                        if (i == count){
+                            sprintf(ascii_out, "unknown flash data %s\r\n", cmd);
+                        }
+                    }
+                }
+            }
+            break; // end generic read of flash or other variable
         case 'G':
         case 'g':
             ascii_process_immediate('g');
@@ -689,6 +820,13 @@ void ascii_process_msg(char *cmd, int len){
                 disablepoweroff = 1;
                 powerofftimer = 0;
             } else {
+                if ((cmd[1] | 0x20) == 'r'){
+                    sprintf(ascii_out, "Reset in 500ms\r\n");
+                    send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                    HAL_Delay(500);
+                    HAL_NVIC_SystemReset();
+                }
+
                 if ((cmd[1] | 0x20) == 'e'){
                     disablepoweroff = 0;
                     powerofftimer = 0;

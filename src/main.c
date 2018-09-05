@@ -32,6 +32,8 @@
 #include "softwareserial.h"
 //#include "hd44780.h"
 #include "pid.h"
+#include "flashcontent.h"
+
 
 #include <memory.h>
 
@@ -130,39 +132,88 @@ int dirs[2] = {-1, 1};
 int dspeeds[2] = {0,0};
 
 
+
+/////////////////////////////////////////
+// variables stored in flash
+// from flashcontent.h
+FLASH_CONTENT FlashContent;
+const FLASH_CONTENT FlashDefaults = FLASH_DEFAULTS;
+
+
+typedef struct tag_PID_FLOATS{
+    float in;
+    float set;
+    float out;
+
+    int count; // - used in averaging speed between pid loops
+} PID_FLOATS;
+
 // setup pid control for left and right speed.
 pid_controller  PositionPid[2];
+// temp floats
 PID_FLOATS PositionPidFloats[2] = {
-  { 0, 0, 0,   0.5, 0.5, 0.0,   0 }, // 2nd 3 are kp, ki, kd
-  { 0, 0, 0,   0.5, 0.5, 0.0,   0 }
+  { 0, 0, 0,   0 },
+  { 0, 0, 0,   0 }
 };
 pid_controller  SpeedPid[2];
+// temp floats
 PID_FLOATS SpeedPidFloats[2] = {
-  { 0, 0, 0,   0.2, 0.1, 0.0,   0 }, // 2nd 3 are kp, ki, kd
-  { 0, 0, 0,   0.2, 0.1, 0.0,   0 }
+  { 0, 0, 0,   0 },
+  { 0, 0, 0,   0 }
 };
 
 void init_PID_control(){
   memset(&PositionPid, 0, sizeof(PositionPid));
-  for (int i = 0; i < 2; i++){
-    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
-      PositionPidFloats[i].kp, PositionPidFloats[i].ki, PositionPidFloats[i].kd);
-
-    // maximum pwm outputs for positional control; limits speed
-  	pid_limits(&PositionPid[i], -200, 200);
-  	pid_auto(&PositionPid[i]);
-  }
   memset(&SpeedPid, 0, sizeof(SpeedPid));
   for (int i = 0; i < 2; i++){
+    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
+      (float)FlashContent.PositionKpx100/100.0,
+      (float)FlashContent.PositionKix100/100.0,
+      (float)FlashContent.PositionKdx100/100.0);
+
+    // maximum pwm outputs for positional control; limits speed
+  	pid_limits(&PositionPid[i], -FlashContent.PositionPWMLimit, FlashContent.PositionPWMLimit);
+  	pid_auto(&PositionPid[i]);
+
     pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set, 
-      SpeedPidFloats[i].kp, SpeedPidFloats[i].ki, SpeedPidFloats[i].kd);
+      (float)FlashContent.SpeedKpx100/100.0,
+      (float)FlashContent.SpeedKix100/100.0,
+      (float)FlashContent.SpeedKdx100/100.0);
 
     // maximum increment to pwm outputs for speed control; limits changes in speed (accelleration)
-  	pid_limits(&SpeedPid[i], -20, 20);
+  	pid_limits(&SpeedPid[i], -FlashContent.SpeedPWMIncrementLimit, FlashContent.SpeedPWMIncrementLimit);
   	pid_auto(&SpeedPid[i]);
   }
-
 }
+
+void change_PID_constants(){
+  for (int i = 0; i < 2; i++){
+    pid_tune(&PositionPid[i], 
+      (float)FlashContent.PositionKpx100/100.0,
+      (float)FlashContent.PositionKix100/100.0,
+      (float)FlashContent.PositionKdx100/100.0);
+  	pid_limits(&PositionPid[i], -FlashContent.PositionPWMLimit, FlashContent.PositionPWMLimit);
+
+    pid_tune(&SpeedPid[i], 
+      (float)FlashContent.SpeedKpx100/100.0,
+      (float)FlashContent.SpeedKix100/100.0,
+      (float)FlashContent.SpeedKdx100/100.0);
+  	pid_limits(&SpeedPid[i], -FlashContent.SpeedPWMIncrementLimit, FlashContent.SpeedPWMIncrementLimit);
+  }
+}
+
+void init_flash_content(){
+  FLASH_CONTENT FlashRead;
+  int len = readFlash( (unsigned char *)&FlashRead, sizeof(FlashRead) );
+
+  if ((len != sizeof(FlashRead)) || (FlashRead.magic != CURRENT_MAGIC)){
+    memcpy(&FlashRead, &FlashDefaults, sizeof(FlashRead));
+    writeFlash( (unsigned char *)&FlashRead, sizeof(FlashRead) );
+    consoleLog("Flash initiailised\r\n");
+  }
+  memcpy(&FlashContent, &FlashRead, sizeof(FlashContent));
+}
+
 
 int main(void) {
   char tmp[200];
@@ -208,6 +259,8 @@ int main(void) {
   // initialise to 9 bit interrupt driven comms on USART 2 & 3
   sensor_USART_init();
   #endif
+
+  init_flash_content();
 
   init_PID_control();
 
@@ -291,7 +344,23 @@ int main(void) {
 
   while(1) {
     startup_counter++;
-    HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
+
+    #ifdef INCLUDE_PROTOCOL
+      // service input serial into out protocol parser
+      // note: modbus expects to see a call > every ms
+      // BUT, we want to loop every 5.
+      unsigned long start = HAL_GetTick();
+      while (HAL_GetTick() < start + DELAY_IN_MAIN_LOOP){
+        while (softwareserial_available() > 0){
+          //if (mb_update() < 0){  // only if we're modbus idle and not our address
+            short inputc = softwareserial_getrx();
+            protocol_byte( (unsigned char) inputc );
+          //}
+        }
+      }
+    #else
+      HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
+    #endif
     cmd1 = 0;
     cmd2 = 0;
 
@@ -331,13 +400,6 @@ int main(void) {
     #endif
 
 
-    #ifdef INCLUDE_PROTOCOL
-      // service input serial into out protocol parser
-      short inputc = -1;
-      while ((inputc = softwareserial_getrx()) >= 0){
-        protocol_byte( (unsigned char) inputc );
-      }
-    #endif
 
     #ifdef READ_SENSOR
       if (!power_button_held){
@@ -348,7 +410,9 @@ int main(void) {
         // enable hoverboard mode. 
         if (CONTROL_TYPE_NONE == control_type){
           if (sensor_data[0].doubletap || sensor_data[1].doubletap){
-            sensor_control = 1;
+            if (FlashContent.HoverboardEnable){
+              sensor_control = 1;
+            }
             consoleLog("double tap -> hoverboard mode\r\n");
             sensor_data[0].doubletap = 0;
             sensor_data[1].doubletap = 0;
@@ -383,7 +447,7 @@ int main(void) {
         // if roll is a large angle (>20 degrees)
         // then disable
     #ifdef CONTROL_SENSOR
-        if (sensor_control){
+        if (sensor_control && FlashContent.HoverboardEnable){
           if (rollhigh){
             enable = 0;
           } else {
@@ -417,7 +481,7 @@ int main(void) {
         } 
     #endif // end if control_sensor
  
-        if (!sensor_control){
+        if (!sensor_control || !FlashContent.HoverboardEnable){
 
           if (last_control_type != control_type){
             // nasty things happen if it's not re-initialised

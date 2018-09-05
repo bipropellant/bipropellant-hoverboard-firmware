@@ -78,18 +78,6 @@ typedef struct tag_SPEED_DATA {
 
 extern SPEED_DATA SpeedData;
 
-typedef struct tag_PID_FLOATS{
-    float in;
-    float set;
-    float out;
-
-    float kp;
-    float ki;
-    float kd;
-
-    int count; // - used in averaging speed between pid loops
-} PID_FLOATS;
-
 
 
 
