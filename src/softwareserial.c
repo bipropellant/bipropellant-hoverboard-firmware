@@ -138,6 +138,48 @@ short softwareserial_getrx(){
 }
 
 //////////////////////////////////////////////////////////
+// get a single character if available.
+// return -1 if none.
+short softwareserial_peekrx(){
+    short t = -1;
+    if (softwareserialRXbuffer.head != softwareserialRXbuffer.tail){
+        t = softwareserialRXbuffer.buff[softwareserialRXbuffer.tail];
+    }
+    return t;
+}
+
+
+//////////////////////////////////////////////////////////
+// return chars available
+int softwareserial_available(){
+    if (softwareserialRXbuffer.head != softwareserialRXbuffer.tail){
+        int count = softwareserialRXbuffer.head - softwareserialRXbuffer.tail;
+        if (count < 0){
+            count += SOFTWARE_SERIAL_BUFFER_SIZE;
+        }
+        return count;
+    }
+    return 0;
+}
+
+
+//////////////////////////////////////////////////////////
+// flush receive
+void softwareserial_flushRX(){
+    __disable_irq();
+    softwareserialRXbuffer.head = softwareserialRXbuffer.tail;
+    __enable_irq();
+}
+
+//////////////////////////////////////////////////////////
+// flush receive
+void softwareserial_flushTX(){
+    __disable_irq();
+    softwareserialTXbuffer.head = softwareserialTXbuffer.tail;
+    __enable_irq();
+}
+
+//////////////////////////////////////////////////////////
 // put a single character if room in output buffer
 void softwareserial_puttx(unsigned char value){
     int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;

@@ -32,6 +32,21 @@ void SoftwareSerialInit(void);
 // get a character, -1 if none.
 short softwareserial_getrx(); 
 
+// get a character, -1 if none.  But don't move buffer
+short softwareserial_peekrx();
+
+//////////////////////////////////////////////////////////
+// flush receive
+void softwareserial_flushRX();
+
+//////////////////////////////////////////////////////////
+// flush tx
+void softwareserial_flushTX();
+
+//////////////////////////////////////////////////////////
+// return 1 if chars are available
+int softwareserial_available();
+
 //////////////////////////////////////////////////////////
 // copy a buffer of data to the output buffer, fail if no room
 int softwareserial_Send(unsigned char *data, int len);
