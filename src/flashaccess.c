@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "config.h"
 #include "comms.h"
+#include "flashaccess.h"
 #include <memory.h>
 
 #ifdef FLASH_STORAGE
@@ -10,12 +11,24 @@
 // pages are 2k=0x400 bytes
 
 // from flasharea.c, which reserves a page of flash for our use.
-extern int flashlen;
-extern volatile const uint8_t flash_data[];
+//extern int flashlen;
+//extern volatile const uint8_t flash_data[];
 
+// last two pages of the first half
+volatile uint8_t *flash_data = (uint8_t *) 0x08000000 + 62*2048;
+int flashlen = 4096; // two pages
 
 // routines to read and write config data
 // we will write at incrementing locations through the flash until we exhaust it, then erase and start over.
+
+
+unsigned short writeFlash16( volatile unsigned short *data, uint16_t len ){
+    int outlen = writeFlash( (unsigned char *)data, len*2 );
+    if (outlen >= 0){
+        outlen /=2;
+    }
+    return outlen;
+}
 
 // data will be written 32 bit aligned, with the last long being a length.
 // everything AFTER will still be 0xFFFFFFFF
@@ -97,6 +110,13 @@ int writeFlash( unsigned char *data, int len ){
 }
 
 
+unsigned short readFlash16( volatile unsigned short *data, uint16_t len ){
+    int outlen = readFlash( (unsigned char *)data, len*2 );
+    if (outlen >= 0){
+        outlen /=2;
+    }
+    return outlen;
+}
 // the last data written will be read
 int readFlash( unsigned char *data, int len ){
     unsigned short *p = (unsigned short *)flash_data;
