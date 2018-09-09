@@ -35,15 +35,10 @@ typedef struct tag_POSN_DATA {
     // these get set
     long wanted_posn_mm[2];
 
-
     // configurations/constants
-    float posn_diff_mult; // gain on posn error > speed
     int posn_max_speed; // max speed in this mode
     int posn_min_speed; // minimum speed (to get wheels moving)
-    int posn_accelleration_factor; // 1/this = ammount of speed added each tick
 
-    int posn_max_diff_mm; // max posn error allowed
-    int posn_stop_speed;  // speed below which we stop
 
 
     // just so it can be read back
@@ -57,17 +52,9 @@ typedef struct tag_SPEED_DATA {
     // these get set
     long wanted_speed_mm_per_sec[2];
 
-
     // configurations/constants
-    float speed_diff_mult; // gain on posn error > speed
-
     int speed_max_power; // max speed in this mode
     int speed_min_power; // minimum speed (to get wheels moving)
-    int speed_accelleration_factor; // 1/this = ammount of power added each tick
-
-    int speed_max_diff_mm_per_sec; // max posn error allowed
-    int speed_stop_power;  // power below which we stop
-
     int speed_minimum_speed; // below this, we don't ask it to do anything
 
 

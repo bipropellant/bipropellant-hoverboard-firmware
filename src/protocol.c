@@ -115,24 +115,17 @@ char *control_types[]={
 
 POSN_DATA PosnData = {
     {0, 0},
-    1.0,
-    200,
-    70,
-    5,
-    10,
-    15
+
+    200, // max pwm in posn mode
+    70, // min pwm in posn mode
 };
 
 
 SPEED_DATA SpeedData = {
     {0, 0},
-    1.0, // multiplier
-    600, // max power
-    -600,  // min power 
-    5,
-    10,
-    15,
 
+    600, // max power (PWM)
+    -600,  // min power 
     40 // minimum mm/s which we can ask for
 };
 
@@ -631,6 +624,7 @@ void ascii_process_msg(char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n"\
                 "   N/O/R - read seNsor data/toggle pOsitional control/dangeR\r\n"
+                "  Ip/Is/Iw - direct to posn/speed/pwm control\r\n"\
                 " T -send a test message A-ack N-nack T-test\r\n"\
                 " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
                 "  Fss - print, Fss<n> - set\r\n"
@@ -803,8 +797,34 @@ void ascii_process_msg(char *cmd, int len){
 
         case 'I':
         case 'i':
-            enable_immediate = 1;
-            sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ\r\n>");
+            speedB = 0; 
+            steerB = 0;
+            SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
+            dspeeds[0] = dspeeds[1] = speedB;
+            PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+            PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+            if (len == 1){
+                enable_immediate = 1;
+                sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ\r\n>");
+            } else {
+                switch (cmd[1] | 0x20){
+                    case 's':
+                        enable_immediate = 1;
+                        control_type = CONTROL_TYPE_SPEED;
+                        sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Speed control\r\n>");
+                        break;
+                    case 'p':
+                        enable_immediate = 1;
+                        control_type = CONTROL_TYPE_POSITION;
+                        sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Position control\r\n>");
+                        break;
+                    case 'w':
+                        enable_immediate = 1;
+                        control_type = CONTROL_TYPE_PWM;
+                        sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Power (pWm) control\r\n>");
+                        break;
+                }
+            }
             break;
 
         case 'N':

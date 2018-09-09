@@ -166,6 +166,8 @@ void init_PID_control(){
   memset(&PositionPid, 0, sizeof(PositionPid));
   memset(&SpeedPid, 0, sizeof(SpeedPid));
   for (int i = 0; i < 2; i++){
+    PositionPidFloats[i].in = 0;
+    PositionPidFloats[i].set = 0;
     pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
       (float)FlashContent.PositionKpx100/100.0,
       (float)FlashContent.PositionKix100/100.0,
@@ -174,7 +176,8 @@ void init_PID_control(){
     // maximum pwm outputs for positional control; limits speed
   	pid_limits(&PositionPid[i], -FlashContent.PositionPWMLimit, FlashContent.PositionPWMLimit);
   	pid_auto(&PositionPid[i]);
-
+    SpeedPidFloats[i].in = 0;
+    SpeedPidFloats[i].set = 0;
     pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set, 
       (float)FlashContent.SpeedKpx100/100.0,
       (float)FlashContent.SpeedKix100/100.0,
@@ -483,7 +486,7 @@ int main(void) {
  
         if (!sensor_control || !FlashContent.HoverboardEnable){
 
-          if (last_control_type != control_type){
+          if ((last_control_type != control_type) || (!enable)){
             // nasty things happen if it's not re-initialised
             init_PID_control();
             last_control_type = control_type;
@@ -510,14 +513,20 @@ int main(void) {
               break;
             case CONTROL_TYPE_SPEED:
               for (int i = 0; i < 2; i++){
+                // average speed over all the loops until pid_need_compute() returns !=0
                 SpeedPidFloats[i].in += HallData[i].HallSpeed_mm_per_s;
                 SpeedPidFloats[i].count++;
+                if (!enable){ // don't want anything building up
+                  SpeedPidFloats[i].in = 0;
+                  SpeedPidFloats[i].count = 1;
+                }
                 if (pid_need_compute(&SpeedPid[i])) {
                   // Read process feedback
-
+                  int belowmin = 0;
                   // won't work below about 45
                   if (ABS(SpeedData.wanted_speed_mm_per_sec[i]) < SpeedData.speed_minimum_speed){
                     SpeedPidFloats[i].set = 0;
+                    belowmin = 1;
                   } else {  
                     SpeedPidFloats[i].set = SpeedData.wanted_speed_mm_per_sec[i];
                   }
@@ -527,8 +536,12 @@ int main(void) {
                   pid_compute(&SpeedPid[i]);
                   //Change actuator value
                   int pwm = SpeedPidFloats[i].out;
-                  pwms[i] = 
-                    CLAMP(pwms[i] + pwm, -SpeedData.speed_max_power, SpeedData.speed_max_power);
+                  if (belowmin){
+                    pwms[i] = 0;
+                  } else {
+                    pwms[i] = 
+                      CLAMP(pwms[i] + pwm, -SpeedData.speed_max_power, SpeedData.speed_max_power);
+                  }
                   if (i == 0){
                     sprintf(tmp, "%d:%d(%d) S:%d H:%d\r\n", i, pwms[i], pwm, (int)SpeedPidFloats[i].set, (int)SpeedPidFloats[i].in);
                     consoleLog(tmp);
@@ -565,6 +578,9 @@ int main(void) {
     #ifdef ADDITIONAL_CODE
       ADDITIONAL_CODE;
     #endif
+      if (!enable){
+        pwms[0] = pwms[1] = 0;
+      }
 
     #ifdef INVERT_R_DIRECTION
       pwmr = pwms[1];
