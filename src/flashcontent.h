@@ -53,4 +53,9 @@ extern FLASH_CONTENT FlashContent;
 
 extern const FLASH_CONTENT FlashDefaults;
 
-#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   1 }
+
+#ifdef CONTROL_SENSOR
+    #define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   1 }
+#else
+    #define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   0 }
+#endif

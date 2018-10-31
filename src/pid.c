@@ -17,7 +17,7 @@
 	Author website: http://www.geekfactory.mx
 	Author e-mail: ruben at geekfactory dot mx
  */
-#include "PID.h"
+#include "pid.h"
 
 p_pid_controller pid_create(p_pid_controller pid, float* in, float* out, float* set, float kp, float ki, float kd)
 {

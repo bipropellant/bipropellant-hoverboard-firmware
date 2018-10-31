@@ -404,8 +404,10 @@ int main(void) {
 
 
 
-    #ifdef READ_SENSOR
+    #if defined(INCLUDE_PROTOCOL)||defined(READ_SENSOR)
       if (!power_button_held){
+    #endif
+    #ifdef READ_SENSOR
         // read the last sensor message in the buffer
         sensor_read_data();
 
@@ -483,8 +485,14 @@ int main(void) {
           }
         } 
     #endif // end if control_sensor
- 
+    
+    #endif // READ_SENSOR
+    #if defined(INCLUDE_PROTOCOL)||defined(READ_SENSOR)
+    #ifdef READ_SENSOR
         if (!sensor_control || !FlashContent.HoverboardEnable){
+    #else
+        if (!FlashContent.HoverboardEnable){
+    #endif //READ_SENSOR
 
           if ((last_control_type != control_type) || (!enable)){
             // nasty things happen if it's not re-initialised
@@ -558,9 +566,11 @@ int main(void) {
         }
       }
 
+    #ifdef READ_SENSOR
       // send twice to make sure each side gets it.
       // if we sent diagnositc data, it seems to need this.
       sensor_send_lights();
+    #endif
     #else
 
 

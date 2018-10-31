@@ -60,8 +60,8 @@
 
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
-#define READ_SENSOR
-#define CONTROL_SENSOR
+//#define READ_SENSOR
+//#define CONTROL_SENSOR
 #define CONTROL_SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
 //#define CONTROL_SENSOR_BAUD     26300    // reported baudrate for other sensor boards?
 
@@ -98,10 +98,10 @@
 #define SOFTWARE_SERIAL
 #define DEBUG_SOFTWARE_SERIAL
 // there should now be a free choice of serial GPIO pins
-#define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2
-#define SOFTWARE_SERIAL_RX_PORT GPIOB
-#define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
-#define SOFTWARE_SERIAL_TX_PORT GPIOC
+#define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2    // PB10/USART3_TX Pin29      PA2/USART2_TX/ADC123_IN2  Pin16
+#define SOFTWARE_SERIAL_RX_PORT GPIOA
+#define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_3    // PB11/USART3_RX Pin30      PA3/USART2_RX/ADC123_IN3  Pin17  
+#define SOFTWARE_SERIAL_TX_PORT GPIOA
 #define SOFTWARE_SERIAL_BAUD 9600
 
 // ############################### SERIAL PROTOCOL ###############################

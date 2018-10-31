@@ -22,7 +22,7 @@
 /*-------------------------------------------------------------*/
 /*		Includes and dependencies			*/
 /*-------------------------------------------------------------*/
-#include "Tick/Tick.h"
+#include "tick/tick.h"
 #include <stdbool.h>
 #include <stdint.h>
 

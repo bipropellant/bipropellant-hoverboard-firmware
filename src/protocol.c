@@ -83,6 +83,8 @@
 // extern variables you want to read/write here
 #ifdef CONTROL_SENSOR
 extern SENSOR_DATA sensor_data[2];
+extern int sensor_control;
+extern int sensor_stabilise;
 #endif
 
 extern uint8_t enable; // global variable for motor enable
@@ -93,8 +95,6 @@ extern int pwms[2];
 
 
 extern int debug_out;
-extern int sensor_control;
-extern int sensor_stabilise;
 extern int disablepoweroff;
 extern int powerofftimer;
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
@@ -175,8 +175,10 @@ void PreRead_getspeeds(void){
 
 // after write we call this...
 void PostWrite_setspeeds(void){
-    SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
-    SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
+   // SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
+   // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
+    control_type = CONTROL_TYPE_PWM;
+    timeout = 0;
 }
 
 typedef struct tag_POSN {
@@ -475,7 +477,9 @@ int ascii_process_immediate(unsigned char byte){
             pwms[0] = pwms[1] = speedB;
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#ifdef CONTROL_SENSOR
             sensor_control = 0;
+#endif
             enable = 0;
             sprintf(ascii_out, "Stop set\r\n");
             break;
@@ -492,18 +496,22 @@ int ascii_process_immediate(unsigned char byte){
             pwms[0] = pwms[1] = speedB;
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#ifdef CONTROL_SENSOR
             sensor_control = 0;
+#endif
             control_type = 0;
             enable = 0;
             sprintf(ascii_out, "Immediate commands disabled\r\n");
             break;
 
+#ifdef CONTROL_SENSOR
         case 'R':
         case 'r':
             processed = 1;
             sensor_stabilise ^= 1;
             sprintf(ascii_out, "Sensor Stabilisation is now %d\r\n", sensor_stabilise);
             break;
+#endif
 
         case 'H':
         case 'h':
@@ -606,8 +614,15 @@ void ascii_process_msg(char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "Hoverboard Mk1\r\n"\
                 "Cmds (press return after):\r\n"\
-                " A n m l -set buzzer (freq, patt, len_ms)\r\n"\
-                " B -toggle sensor Board control\r\n"\
+                " A n m l -set buzzer (freq, patt, len_ms)\r\n");
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+#ifdef CONTROL_SENSOR            
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
+                " B -toggle sensor Board control\r\n");
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+#endif
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
                 " E - dEbug 'E'-disable all, EC-enable consoleLog, ES enable Scope\r\n"\
                 " P -power control\r\n"\
                 "  P -disablepoweroff\r\n");
@@ -622,8 +637,16 @@ void ascii_process_msg(char *cmd, int len){
             send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 
             snprintf(ascii_out, sizeof(ascii_out)-1, 
-                "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n"\
-                "   N/O/R - read seNsor data/toggle pOsitional control/dangeR\r\n"
+                "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n");
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
+#ifdef CONTROL_SENSOR
+                "   N/O/R - read seNsor data/toggle pOsitional control/dangeR\r\n");
+#else
+                "   O - toggle pOsitional control\r\n");
+#endif
+            send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+            snprintf(ascii_out, sizeof(ascii_out)-1, 
                 "  Ip/Is/Iw - direct to posn/speed/pwm control\r\n"\
                 " T -send a test message A-ack N-nack T-test\r\n"\
                 " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
@@ -668,6 +691,7 @@ void ascii_process_msg(char *cmd, int len){
             break;
         }
 
+#ifdef CONTROL_SENSOR
         case 'B':
         case 'b':
             sensor_control ^= 1;
@@ -680,6 +704,7 @@ void ascii_process_msg(char *cmd, int len){
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
             sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
             break;
+#endif
         case 'C':
         case 'c':
             ascii_process_immediate('c');
