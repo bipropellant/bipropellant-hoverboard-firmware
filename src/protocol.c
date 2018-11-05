@@ -391,7 +391,7 @@ void ascii_byte( unsigned char byte ){
             if (ascii_posn < 20){
                 ascii_cmd[ascii_posn++] = byte;
             } else {
-                byte = '#';
+                //byte = '#';
             }
         }
     } else {

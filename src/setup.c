@@ -297,9 +297,9 @@ void I2C_Init()
     __HAL_LINKDMA(&hi2c2,hdmatx,hdma_i2c2_tx);
 
     /* Peripheral interrupt init */
-    HAL_NVIC_SetPriority(I2C2_EV_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(I2C2_EV_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(I2C2_EV_IRQn);
-    HAL_NVIC_SetPriority(I2C2_ER_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(I2C2_ER_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(I2C2_ER_IRQn);
   /* USER CODE BEGIN I2C2_MspInit 1 */
 
@@ -596,7 +596,7 @@ void MX_ADC1_Init(void) {
   DMA1_Channel1->CCR   = DMA_CCR_MSIZE_1 | DMA_CCR_PSIZE_1 | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_TCIE;
   DMA1_Channel1->CCR |= DMA_CCR_EN;
 
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 }
 
