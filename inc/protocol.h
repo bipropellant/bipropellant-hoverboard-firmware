@@ -123,6 +123,7 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
 
 // a test command - normal payload - 'Test'
 #define PROTOCOL_CMD_TEST 'T'
+#define PROTOCOL_CMD_TESTRESPONSE 't'
 
 // cause unit to restart - no payload
 #define PROTOCOL_CMD_REBOOT 'B'

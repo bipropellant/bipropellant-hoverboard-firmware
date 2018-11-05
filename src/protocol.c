@@ -1008,6 +1008,12 @@ void process_message(PROTOCOL_MSG *msg){
             HAL_NVIC_SystemReset();
             break;
 
+        case PROTOCOL_CMD_TEST:
+            // just send it back!
+            msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
+            protocol_send(msg);
+            break;
+
         default:
             msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
             msg->len = 2;
