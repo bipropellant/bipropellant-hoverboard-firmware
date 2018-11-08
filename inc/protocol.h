@@ -85,7 +85,7 @@ extern int control_type;
 // test - 02 06 54 54 65 73 74 06
 /////////////////////////////////////////////////////////////////
 
-
+#pragma pack(push(1))
 typedef struct tag_PROTOCOL_MSG {
     unsigned char SOM; // 0x02
     unsigned char len; // len is len of ALL bytes to follow, including CS
@@ -113,6 +113,7 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
     unsigned char code; // code of value to write
     unsigned char content[252]; // value to write
 } PROTOCOL_BYTES_WRITEVALS;
+#pragma pack(pop)
 
 /////////////////////////////////////////////////////////
 // command definitions
@@ -123,6 +124,7 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
 
 // a test command - normal payload - 'Test'
 #define PROTOCOL_CMD_TEST 'T'
+#define PROTOCOL_CMD_TESTRESPONSE 't'
 
 // cause unit to restart - no payload
 #define PROTOCOL_CMD_REBOOT 'B'

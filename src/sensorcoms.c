@@ -81,7 +81,7 @@ void USART_init_sensor_port_USART2(){
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(USART2_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(USART2_IRQn);
 
     // start interrupt receive?
@@ -124,7 +124,7 @@ void USART_init_sensor_port_USART3(){
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     // start interrupt receive?
-    HAL_NVIC_SetPriority(USART3_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(USART3_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(USART3_IRQn);
 
     __HAL_UART_ENABLE_IT(&sensoruart3, UART_IT_RXNE);

@@ -336,6 +336,17 @@ void TIM3_IRQHandler(void){
         HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_SET);
     }
 
+    unsigned int time = softwareserialtimer.Instance->CNT;
+    int tdiff = time - softwareserialRXbuffer.lasttime;
+    if (tdiff < 0) tdiff += 0x10000;
+    int bits = (tdiff+2)/8;
+
+    // if more than 10 bits time on rx, then eat last bit
+    if (bits > 9) {
+        softwareserialRXInterrupt();
+    }
+
+
 }
 #endif
 

@@ -393,7 +393,7 @@ void ascii_byte( unsigned char byte ){
             if (ascii_posn < 20){
                 ascii_cmd[ascii_posn++] = byte;
             } else {
-                byte = '#';
+                //byte = '#';
             }
         }
     } else {
@@ -1031,6 +1031,12 @@ void process_message(PROTOCOL_MSG *msg){
             protocol_send_ack();
             HAL_Delay(500);
             HAL_NVIC_SystemReset();
+            break;
+
+        case PROTOCOL_CMD_TEST:
+            // just send it back!
+            msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
+            protocol_send(msg);
             break;
 
         default:

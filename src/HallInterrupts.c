@@ -103,7 +103,7 @@ void HallInterruptinit(void){
 
     // generate an interrupt every time the timer wraps it's 16 bit limit.
     __HAL_TIM_ENABLE_IT(&h_timer_hall, TIM_IT_UPDATE);
-    HAL_NVIC_SetPriority(TIM4_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(TIM4_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(TIM4_IRQn);
 
     // enable IRQs for tyhe hall efect sensor GPIOs.
