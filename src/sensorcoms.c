@@ -1,5 +1,6 @@
 #include "stm32f1xx_hal.h"
 #include "sensorcoms.h"
+#include "comms.h"
 #include "config.h"
 #include "stdio.h"
 #include "string.h"
@@ -14,9 +15,6 @@
 
 #ifdef READ_SENSOR
 
-UART_HandleTypeDef sensoruart2;
-UART_HandleTypeDef sensoruart3;
-
 ////////////////////////////////////////////////////////////////
 // code to read and interpret sensors
 SENSOR_DATA sensor_data[2];
@@ -24,139 +22,8 @@ SENSOR_LIGHTS sensorlights[2];
 
 SENSOR_LIGHTS last_sensorlights[2];
 
-// un comment to run 8 bit with non original sensor boards ?
-//#define SENSOR8BIT
-#define SENSOR_BUFFER_SIZE 256
-typedef struct tag_sensor_buffer {
-#ifdef SENSOR8BIT    
-    unsigned char buff[SENSOR_BUFFER_SIZE];
-#else
-    unsigned short buff[SENSOR_BUFFER_SIZE];
-#endif
-    int head; 
-    int tail; 
-    
-    // count of buffer overflows
-    unsigned int overflow;
-
-} SENSOR_BUFFER;
-
-volatile SENSOR_BUFFER sensorTXbuffers[2];
-volatile SENSOR_BUFFER sensorRXbuffers[2];
-
-void USART_init_sensor_port_USART2(){
-    memset(&sensoruart2, 0, sizeof(sensoruart2));
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    //__HAL_RCC_DMA1_CLK_ENABLE();
-    __HAL_RCC_USART2_CLK_ENABLE();
-
-    sensoruart2.Instance = USART2;
-    sensoruart2.Init.BaudRate = CONTROL_SENSOR_BAUD;
-#ifdef SENSOR8BIT    
-    sensoruart2.Init.WordLength = UART_WORDLENGTH_8B;
-#else
-    sensoruart2.Init.WordLength = UART_WORDLENGTH_9B;
-#endif    
-    sensoruart2.Init.StopBits = UART_STOPBITS_1;
-    sensoruart2.Init.Parity = UART_PARITY_NONE;
-    sensoruart2.Init.Mode = UART_MODE_TX_RX;
-    sensoruart2.Init.OverSampling = UART_OVERSAMPLING_16;
-    sensoruart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-
-    //sensoruart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    HAL_UART_Init(&sensoruart2);
-
-    GPIO_InitTypeDef GPIO_InitStruct;
-    memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
-    GPIO_InitStruct.Pull = GPIO_PULLUP; //GPIO_NOPULL;
-    GPIO_InitStruct.Pin = GPIO_PIN_2;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Pin = GPIO_PIN_3;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT; //GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    HAL_NVIC_SetPriority(USART2_IRQn, 1, 0);
-    HAL_NVIC_EnableIRQ(USART2_IRQn);
-
-    // start interrupt receive?
-    __HAL_UART_ENABLE_IT(&sensoruart2, UART_IT_RXNE);
-
-}
-
-void USART_init_sensor_port_USART3(){
-    memset(&sensoruart3, 0, sizeof(sensoruart3));
-    __HAL_RCC_DMA1_CLK_ENABLE();
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    __HAL_RCC_USART3_CLK_ENABLE();
-    sensoruart3.Instance = USART3;
-    sensoruart3.Init.BaudRate = CONTROL_SENSOR_BAUD;
-#ifdef SENSOR8BIT    
-    sensoruart3.Init.WordLength = UART_WORDLENGTH_8B;
-#else
-    sensoruart3.Init.WordLength = UART_WORDLENGTH_9B;
-#endif    
-    sensoruart3.Init.StopBits = UART_STOPBITS_1;
-    sensoruart3.Init.Parity = UART_PARITY_NONE;
-    sensoruart3.Init.Mode = UART_MODE_TX_RX;
-    sensoruart3.Init.OverSampling = UART_OVERSAMPLING_16;
-    sensoruart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    HAL_UART_Init(&sensoruart3);
-
-    GPIO_InitTypeDef GPIO_InitStruct;
-    memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
-    GPIO_InitStruct.Pin = GPIO_PIN_10;
-    GPIO_InitStruct.Pull = GPIO_PULLUP; //GPIO_NOPULL;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-    memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
-    GPIO_InitStruct.Pin = GPIO_PIN_11;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT; //GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-    // start interrupt receive?
-    HAL_NVIC_SetPriority(USART3_IRQn, 1, 0);
-    HAL_NVIC_EnableIRQ(USART3_IRQn);
-
-    __HAL_UART_ENABLE_IT(&sensoruart3, UART_IT_RXNE);
-}
-
-void sensor_USART_init(){
-  memset((void *)sensorTXbuffers, 0, sizeof(sensorTXbuffers));
-  memset((void *)sensorRXbuffers, 0, sizeof(sensorRXbuffers));
-  memset((void *)sensorlights, 0, sizeof(sensorlights));
-  memset((void *)sensor_data, 0, sizeof(sensor_data));
-
-
-  USART_init_sensor_port_USART2();
-  USART_init_sensor_port_USART3();
-
-}
-
-///////////////////////////
-// starts transmit from buffer on specific port, if data present
-int USART_sensor_starttx(int port){
-    switch(port){
-        case 0:
-            __HAL_UART_ENABLE_IT(&sensoruart2, UART_IT_TXE);
-            break;
-        case 1:
-            __HAL_UART_ENABLE_IT(&sensoruart3, UART_IT_TXE);
-            break;
-    }
-
-    return 1;
-}
-
+volatile SERIAL_USART_BUFFER* sensorTXbuffers[2];
+volatile SERIAL_USART_BUFFER* sensorRXbuffers[2];
 
 ///////////////////////////
 // sends data on sensor port.
@@ -166,8 +33,8 @@ int USART_sensorSend(int port, unsigned char *data, int len, int endframe){
 
     int count = USART_sensor_txcount(port);
     // overflow
-    if (count + len + 1 > SENSOR_BUFFER_SIZE-3){
-        sensorTXbuffers[port].overflow++;
+    if (count + len + 1 > SERIAL_USART_BUFFER_SIZE-3){
+        sensorTXbuffers[port]->overflow++;
         return -1;
     }
 
@@ -185,91 +52,66 @@ int USART_sensorSend(int port, unsigned char *data, int len, int endframe){
 
 
 int USART_sensor_rxcount(int port){
-    int count = sensorRXbuffers[port].head - sensorRXbuffers[port].tail;
-    if (count < 0) count += SENSOR_BUFFER_SIZE;
-    return count;
+    switch(port){
+        case 0:
+            return  serial_usart_buffer_count(&usart2_it_RXbuffer);
+        case 1:
+            return  serial_usart_buffer_count(&usart3_it_RXbuffer);
+    }
 }
+
 
 int USART_sensor_txcount(int port){
-    int count = sensorTXbuffers[port].head - sensorTXbuffers[port].tail;
-    if (count < 0) count += SENSOR_BUFFER_SIZE;
-    return count;
+    switch(port){
+        case 0:
+            return  serial_usart_buffer_count(&usart2_it_TXbuffer);
+        case 1:
+            return  serial_usart_buffer_count(&usart3_it_TXbuffer);
+    }
 }
 
-
-short USART_sensor_getrx(int port){
-    short t = -1;
-    if (sensorRXbuffers[port].head != sensorRXbuffers[port].tail){
-        t = sensorRXbuffers[port].buff[sensorRXbuffers[port].tail];
-        sensorRXbuffers[port].tail = ((sensorRXbuffers[port].tail + 1 ) % SENSOR_BUFFER_SIZE);
-    }
-    return t;
+void USART_sensor_addTXshort(int port, SERIAL_USART_IT_BUFFERTYPE value) {
+    switch(port){
+        case 0:
+            serial_usart_buffer_push(&usart2_it_TXbuffer, value);
+            break;
+        case 1:
+            serial_usart_buffer_push(&usart3_it_TXbuffer, value);
+            break;
+    } 
 }
 
+SERIAL_USART_IT_BUFFERTYPE USART_sensor_getrx(int port) {
+    switch(port){
+        case 0:
+            return serial_usart_buffer_pop(&usart2_it_RXbuffer);
 
-// RX, use our own IRQ routines
-void USART_sensor_addRXshort(int port, unsigned short value){
-    int count = sensorRXbuffers[port].head - sensorRXbuffers[port].tail;
-    if (count < 0) count += SENSOR_BUFFER_SIZE;
-    if (count >=  SENSOR_BUFFER_SIZE-2){
-        sensorRXbuffers[port].overflow++;
-        return;
-    }
-
-    sensorRXbuffers[port].buff[sensorRXbuffers[port].head] = value;
-    sensorRXbuffers[port].head = ((sensorRXbuffers[port].head + 1 ) % SENSOR_BUFFER_SIZE);
+        case 1:
+            return serial_usart_buffer_pop(&usart3_it_RXbuffer);
+    } 
 }
 
-short USART_sensor_getTXshort(int port){
-    short t = -1;
-    if (sensorTXbuffers[port].head != sensorTXbuffers[port].tail){
-        t = sensorTXbuffers[port].buff[sensorTXbuffers[port].tail];
-        sensorTXbuffers[port].tail = ((sensorTXbuffers[port].tail + 1 ) % SENSOR_BUFFER_SIZE);
-    }
-    return t;
+void sensor_init(){
+    memset((void *)sensorlights, 0, sizeof(sensorlights));
+    memset((void *)sensor_data, 0, sizeof(sensor_data));
+    volatile SERIAL_USART_BUFFER* sensorTXbuffers[2] = {&usart2_it_TXbuffer , &usart3_it_TXbuffer};
+    volatile SERIAL_USART_BUFFER* sensorRXbuffers[2] = {&usart2_it_RXbuffer , &usart3_it_RXbuffer};
 }
 
-void USART_sensor_addTXshort(int port, unsigned short value){
-    int count = sensorTXbuffers[port].head - sensorTXbuffers[port].tail;
-    if (count < 0) 
-        count += SENSOR_BUFFER_SIZE;
-
-    if (count >= SENSOR_BUFFER_SIZE-2){
-        sensorTXbuffers[port].overflow++;
-        return;
+///////////////////////////
+// starts transmit from buffer on specific port, if data present
+int USART_sensor_starttx(int port){
+    switch(port){
+        case 0:
+            return USART2_IT_starttx();
+            break;
+        case 1:
+            return USART3_IT_starttx();
+            break;
     }
-    sensorTXbuffers[port].buff[sensorTXbuffers[port].head] = value;
-    sensorTXbuffers[port].head = ((sensorTXbuffers[port].head + 1 ) % SENSOR_BUFFER_SIZE);
+    return 0;
 }
 
-//////////////////////////////////////////////////////
-// called from actual IRQ routines
-void USART_sensor_IRQ(int port, USART_TypeDef *us)
-{
-    volatile uint32_t *SR = &us->SR;
-    volatile uint32_t *SRread = &us->SR;
-    volatile uint32_t *DR = &us->DR;
-    volatile uint32_t *DRread = &us->DR;
-    volatile uint32_t *CR1 = &us->CR1;
-    short t = -1;
-
-    if ((*SR) & UART_FLAG_TXE) {
-        t = USART_sensor_getTXshort(port);
-
-        if (t < 0){
-            *CR1 = (*CR1 & ~(USART_CR1_TXEIE | USART_CR1_TCIE));
-        } else {
-            *DR = (t & 0x1ff);    
-        }
-    }
-
-    if (((*SRread) & UART_FLAG_RXNE)) {
-        short rword = (*DRread) & 0x01FF;
-        USART_sensor_addRXshort(port, rword);
-    }
-
-    return;
-}
 
 short rx2[2][20];
 int rx2posn[2];

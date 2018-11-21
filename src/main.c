@@ -260,8 +260,15 @@ int main(void) {
 
   #ifdef READ_SENSOR
   // initialise to 9 bit interrupt driven comms on USART 2 & 3
-  sensor_USART_init();
+  sensor_init();
   #endif
+  #ifdef SERIAL_USART2_IT
+  USART2_IT_init();
+  #endif
+  #ifdef SERIAL_USART3_IT
+  USART3_IT_init();
+  #endif
+
 
   init_flash_content();
 
@@ -285,7 +292,6 @@ int main(void) {
   int Clamp[2] =  {600, 600};
   
   #endif
-
   #ifdef HALL_INTERRUPTS
     // enables interrupt reading of hall sensors for dead reconing wheel position.
     HallInterruptinit();
@@ -342,13 +348,15 @@ int main(void) {
   
   unsigned int startup_counter = 0;
 
+  #ifdef INCLUDE_PROTOCOL
   int last_control_type = CONTROL_TYPE_NONE;
+  #endif
 
 
   while(1) {
     startup_counter++;
 
-    #ifdef INCLUDE_PROTOCOL
+    #if defined(SOFTWARE_SERIAL) && defined(INCLUDE_PROTOCOL)
       // service input serial into out protocol parser
       // note: modbus expects to see a call > every ms
       // BUT, we want to loop every 5.
@@ -364,6 +372,22 @@ int main(void) {
     #else
       HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
     #endif
+
+    // TODO: Method to select which input is used for Protocol when both are active
+    #if defined(SERIAL_USART2_IT) && defined(INCLUDE_PROTOCOL) && !defined(READ_SENSOR)
+      while (serial_usart_buffer_count(&usart2_it_RXbuffer) > 0) {
+        SERIAL_USART_IT_BUFFERTYPE inputc = serial_usart_buffer_pop(&usart2_it_RXbuffer);
+        protocol_byte( (unsigned char) inputc );
+      }
+    #elif defined(SERIAL_USART3_IT) && defined(INCLUDE_PROTOCOL) && !defined(READ_SENSOR)
+      while (serial_usart_buffer_count(&usart3_it_RXbuffer) > 0) {
+        SERIAL_USART_IT_BUFFERTYPE inputc = serial_usart_buffer_pop(&usart3_it_RXbuffer);
+        protocol_byte( (unsigned char) inputc );
+      }
+    #endif
+    
+
+
     cmd1 = 0;
     cmd2 = 0;
 

@@ -18,11 +18,6 @@
 */
 #pragma once
 
-#ifndef SENSORCOMS_H
-#define SENSORCOMS_H
-
-
-#include "stm32f1xx_hal.h"
 #include "config.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -31,12 +26,11 @@
 /////////////////////////////////////////////////////////////////////////////////////
 
 
-
 #ifdef READ_SENSOR
 
 /////////////////////////////////////////////////////////
 // functions to use.
-void sensor_USART_init();
+void sensor_init();
 void sensor_read_data();
 int sensor_get_speeds(int16_t *speedL, int16_t *speedR);
 void sensor_set_flash(int side, int count);
@@ -97,7 +91,7 @@ extern SENSOR_DATA sensor_data[2];
 
 
 int  USART_sensorSend(int port, unsigned char *data, int len, int startframe);
-short USART_sensor_getrx(int port);
+SERIAL_USART_IT_BUFFERTYPE USART_sensor_getrx(int port);
 int USART_sensor_rxcount(int port);
 int USART_sensor_txcount(int port);
 /////////////////////////////////////////////////////////
@@ -105,20 +99,7 @@ int USART_sensor_txcount(int port);
 
 /////////////////////////////////////////////////////////
 // internal functions
-void USART_init_sensor_port_USART2();
-void USART_init_sensor_port_USART3();
 int  USART_sensor_starttx(int port);
-void USART_sensor_addRXshort(int port, unsigned short value);
-short USART_sensor_getTXshort(int port);
-void USART_sensor_addTXshort(int port, unsigned short value);
-
-
-/////////////////////////////////////////////////////////
-
-
-#define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
-
-#else // end if READ_SENSOR
-#endif
+void USART_sensor_addTXshort(int port, SERIAL_USART_IT_BUFFERTYPE value);
 
 #endif

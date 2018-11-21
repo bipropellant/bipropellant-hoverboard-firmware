@@ -142,6 +142,19 @@ int (*send_serial_data)( unsigned char *data, int len ) = softwareserial_Send;
 int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
 #endif
 
+// TODO: Method to select which output is used for Protocol when both are active
+#if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+extern int USART2_IT_send(unsigned char *data, int len);
+
+int (*send_serial_data)( unsigned char *data, int len ) = USART2_IT_send;
+int (*send_serial_data_wait)( unsigned char *data, int len ) = USART2_IT_send;
+#elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+extern int USART3_IT_send(unsigned char *data, int len);
+
+int (*send_serial_data)( unsigned char *data, int len ) = USART3_IT_send;
+int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_send;
+#endif
+
 #ifdef DEBUG_SERIAL_USART3
 // need to implement a buffering function here.
 // current DMA method needs attention...

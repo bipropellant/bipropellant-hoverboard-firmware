@@ -47,7 +47,6 @@
 
 //#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuck or lcd) is used!
 //#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
-#define DEBUG_BAUD       115200     // UART baud rate
 //#define DEBUG_SERIAL_SERVOTERM
 #define DEBUG_SERIAL_ASCII          // "1:345 2:1337 3:0 4:0 5:0 6:0 7:0 8:0\r\n"
 
@@ -55,15 +54,39 @@
 
 // ###### CONTROL VIA UART (serial) ######
 //#define CONTROL_SERIAL_USART2       // left sensor board cable, disable if ADC or PPM is used!
-#define CONTROL_BAUD     19200    // control via usart from eg an Arduino or raspberry
+                                      // control via usart from eg an Arduino or raspberry
 // for Arduino, use void loop(void){ Serial.write((uint8_t *) &steer, sizeof(steer)); Serial.write((uint8_t *) &speed, sizeof(speed));delay(20); }
 
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
 //#define READ_SENSOR
 //#define CONTROL_SENSOR
-#define CONTROL_SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
-//#define CONTROL_SENSOR_BAUD     26300    // reported baudrate for other sensor boards?
+
+#if defined(READ_SENSOR)
+  #define SERIAL_USART2_IT
+  #define SERIAL_USART3_IT
+  #define USART2_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
+  #define USART3_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
+//#define USART2_BAUD     26300    // reported baudrate for other sensor boards?
+//#define USART3_BAUD     26300    // reported baudrate for other sensor boards?
+  #define SERIAL_USART_IT_BUFFERTYPE  unsigned short
+//#define SERIAL_USART_IT_BUFFERTYPE  unsigned char // 8 bit with non original sensor boards ?
+  #define USART2_WORDLENGTH UART_WORDLENGTH_9B
+  #define USART3_WORDLENGTH UART_WORDLENGTH_9B
+//#define USART2_WORDLENGTH UART_WORDLENGTH_8B      // 8 bit with non original sensor boards ?
+//#define USART3_WORDLENGTH UART_WORDLENGTH_8B      // 8 bit with non original sensor boards ?
+
+#else
+//  #define SERIAL_USART2_IT
+  #define USART2_BAUD       115200                  // UART baud rate
+  #define USART2_WORDLENGTH UART_WORDLENGTH_8B      // UART_WORDLENGTH_8B or UART_WORDLENGTH_9B
+
+  #define SERIAL_USART3_IT
+  #define USART3_BAUD       115200                  // UART baud rate
+  #define USART3_WORDLENGTH UART_WORDLENGTH_8B      // UART_WORDLENGTH_8B or UART_WORDLENGTH_9B
+
+  #define SERIAL_USART_IT_BUFFERTYPE  unsigned char // char or short
+#endif
 
 // ###### CONTROL VIA RC REMOTE ######
 // left sensor board cable. Channel 1: steering, Channel 2: speed.
@@ -73,9 +96,9 @@
 // ###### CONTROL VIA TWO POTENTIOMETERS ######
 // ADC-calibration to cover the full poti-range: connect potis to left sensor board cable (0 to 3.3V) (do NOT use the red 15V wire in the cable!). see <How to calibrate>. turn the potis to minimum position, write value 1 to ADC1_MIN and value 2 to ADC2_MIN. turn to maximum position and repeat it for ADC?_MAX. make, flash and test it.
 //#define CONTROL_ADC                 // use ADC as input. disable DEBUG_SERIAL_USART2!
-#define ADC1_MIN 0                // min ADC1-value while poti at minimum-position (0 - 4095)
+#define ADC1_MIN 0                  // min ADC1-value while poti at minimum-position (0 - 4095)
 #define ADC1_MAX 4095               // max ADC1-value while poti at maximum-position (0 - 4095)
-#define ADC2_MIN 0                // min ADC2-value while poti at minimum-position (0 - 4095)
+#define ADC2_MIN 0                  // min ADC2-value while poti at minimum-position (0 - 4095)
 #define ADC2_MAX 4095               // max ADC2-value while poti at maximum-position (0 - 4095)
 
 // ###### CONTROL VIA NINTENDO NUNCHUCK ######
@@ -95,8 +118,8 @@
 
 // ############################### SOFTWARE SERIAL ###############################
 //
-#define SOFTWARE_SERIAL
-#define DEBUG_SOFTWARE_SERIAL
+//#define SOFTWARE_SERIAL
+//#define DEBUG_SOFTWARE_SERIAL
 // there should now be a free choice of serial GPIO pins
 #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2    // PB10/USART3_TX Pin29      PA2/USART2_TX/ADC123_IN2  Pin16
 #define SOFTWARE_SERIAL_RX_PORT GPIOA

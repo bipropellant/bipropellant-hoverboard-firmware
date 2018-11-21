@@ -402,18 +402,19 @@ void EXTI15_10_IRQHandler(void)
 /////////////////////////////////////////
 // UART interrupts
 
-// used to read original sensors - calls into sensorcoms.c
-#ifdef READ_SENSOR
-// declare it here; why does it not come in with the header?
-void USART_sensor_IRQ(int port, USART_TypeDef *us);
+#if defined(SERIAL_USART2_IT)
+void USART2_IT_IRQ(USART_TypeDef *us);
 
 void USART2_IRQHandler(void){
-    USART_sensor_IRQ(0, USART2);
+    USART2_IT_IRQ(USART2);
 }
+#endif
 
+#if defined(SERIAL_USART3_IT)
+void USART3_IT_IRQ(USART_TypeDef *us);
 
 void USART3_IRQHandler(void){
-    USART_sensor_IRQ(1, USART3);
+    USART3_IT_IRQ(USART3);
 }
 #endif
 //
