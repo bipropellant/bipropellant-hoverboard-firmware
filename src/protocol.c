@@ -26,6 +26,8 @@
 #include "bldc.h"
 
 #include "flashcontent.h"
+#include "flashaccess.h"
+#include "comms.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -86,6 +88,9 @@ extern SENSOR_DATA sensor_data[2];
 extern int sensor_control;
 extern int sensor_stabilise;
 #endif
+
+// from main.c
+extern void change_PID_constants();
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
@@ -230,11 +235,13 @@ void PostWrite_incrementposition(){
 
 void PostWrite_writeflash(){
     if (FlashContent.magic != CURRENT_MAGIC){
-        consoleLog("incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
+        char temp[128];
+        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
+        consoleLog(temp);
         FlashContent.magic = CURRENT_MAGIC;
         return;
     }
-    writeFlash( &FlashContent, sizeof(FlashContent) );
+    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
     consoleLog("wrote flash\r\n");
 }
 
