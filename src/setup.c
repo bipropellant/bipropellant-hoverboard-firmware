@@ -38,6 +38,7 @@ pb10 usart3 dma1 channel2/3
 #include "defines.h"
 #include "config.h"
 #include "comms.h"
+#include "memory.h"
 
 TIM_HandleTypeDef htim_right;
 TIM_HandleTypeDef htim_left;
@@ -193,8 +194,8 @@ void UART_Init() {
 
 #ifdef SERIAL_USART2_IT
 void USART2_IT_init(){
-    memset(&usart2_it_TXbuffer, 0, sizeof(usart2_it_TXbuffer));
-    memset(&usart2_it_RXbuffer, 0, sizeof(usart2_it_RXbuffer));
+    memset((void*)&usart2_it_TXbuffer, 0, sizeof(usart2_it_TXbuffer));
+    memset((void*)&usart2_it_RXbuffer, 0, sizeof(usart2_it_RXbuffer));
 
     memset(&huart2, 0, sizeof(huart2));
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -235,8 +236,8 @@ void USART2_IT_init(){
 
 #ifdef SERIAL_USART3_IT
 void USART3_IT_init(){
-    memset(&usart3_it_TXbuffer, 0, sizeof(usart3_it_TXbuffer));
-    memset(&usart3_it_RXbuffer, 0, sizeof(usart3_it_RXbuffer));
+    memset((void *)&usart3_it_TXbuffer, 0, sizeof(usart3_it_TXbuffer));
+    memset((void *)&usart3_it_RXbuffer, 0, sizeof(usart3_it_RXbuffer));
 
     memset(&huart3, 0, sizeof(huart3));
     __HAL_RCC_GPIOB_CLK_ENABLE();
