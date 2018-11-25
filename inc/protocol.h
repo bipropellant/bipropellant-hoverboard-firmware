@@ -85,7 +85,7 @@ extern int control_type;
 // test - 02 06 54 54 65 73 74 06
 /////////////////////////////////////////////////////////////////
 
-#pragma pack(push(1))
+#pragma pack(push, 1)
 typedef struct tag_PROTOCOL_MSG {
     unsigned char SOM; // 0x02
     unsigned char len; // len is len of ALL bytes to follow, including CS

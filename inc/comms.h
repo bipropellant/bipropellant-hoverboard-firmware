@@ -33,9 +33,9 @@ void  USART3_IT_IRQ(USART_TypeDef *us);
 
 #endif
 
-int                        serial_usart_buffer_count(SERIAL_USART_BUFFER *usart_buf);
-void                       serial_usart_buffer_push (SERIAL_USART_BUFFER *usart_buf, SERIAL_USART_IT_BUFFERTYPE value);
-SERIAL_USART_IT_BUFFERTYPE serial_usart_buffer_pop  (SERIAL_USART_BUFFER *usart_buf);
+int                        serial_usart_buffer_count(volatile SERIAL_USART_BUFFER *usart_buf);
+void                       serial_usart_buffer_push (volatile SERIAL_USART_BUFFER *usart_buf, SERIAL_USART_IT_BUFFERTYPE value);
+SERIAL_USART_IT_BUFFERTYPE serial_usart_buffer_pop  (volatile SERIAL_USART_BUFFER *usart_buf);
 
 
 

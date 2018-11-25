@@ -22,8 +22,6 @@ SENSOR_LIGHTS sensorlights[2];
 
 SENSOR_LIGHTS last_sensorlights[2];
 
-volatile SERIAL_USART_BUFFER* sensorTXbuffers[2];
-volatile SERIAL_USART_BUFFER* sensorRXbuffers[2];
 
 ///////////////////////////
 // sends data on sensor port.
@@ -34,7 +32,6 @@ int USART_sensorSend(int port, unsigned char *data, int len, int endframe){
     int count = USART_sensor_txcount(port);
     // overflow
     if (count + len + 1 > SERIAL_USART_BUFFER_SIZE-3){
-        sensorTXbuffers[port]->overflow++;
         return -1;
     }
 
@@ -94,8 +91,6 @@ SERIAL_USART_IT_BUFFERTYPE USART_sensor_getrx(int port) {
 void sensor_init(){
     memset((void *)sensorlights, 0, sizeof(sensorlights));
     memset((void *)sensor_data, 0, sizeof(sensor_data));
-    volatile SERIAL_USART_BUFFER* sensorTXbuffers[2] = {&usart2_it_TXbuffer , &usart3_it_TXbuffer};
-    volatile SERIAL_USART_BUFFER* sensorRXbuffers[2] = {&usart2_it_RXbuffer , &usart3_it_RXbuffer};
 }
 
 ///////////////////////////

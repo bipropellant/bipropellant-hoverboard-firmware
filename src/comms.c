@@ -207,13 +207,13 @@ void USART3_IT_IRQ(USART_TypeDef *us) {
 
 #endif
 
-int serial_usart_buffer_count(SERIAL_USART_BUFFER *usart_buf) {
+int serial_usart_buffer_count(volatile SERIAL_USART_BUFFER *usart_buf) {
     int count = usart_buf->head - usart_buf->tail;
     if (count < 0) count += SERIAL_USART_BUFFER_SIZE;
     return count;
 }
 
-void serial_usart_buffer_push(SERIAL_USART_BUFFER *usart_buf, SERIAL_USART_IT_BUFFERTYPE value) {
+void serial_usart_buffer_push(volatile SERIAL_USART_BUFFER *usart_buf, SERIAL_USART_IT_BUFFERTYPE value) {
     int count = serial_usart_buffer_count(usart_buf);
     if (count >=  SERIAL_USART_BUFFER_SIZE-2){
         usart_buf->overflow++;
@@ -224,7 +224,7 @@ void serial_usart_buffer_push(SERIAL_USART_BUFFER *usart_buf, SERIAL_USART_IT_BU
     usart_buf->head = ((usart_buf->head + 1 ) % SERIAL_USART_BUFFER_SIZE);
 } 
 
-SERIAL_USART_IT_BUFFERTYPE serial_usart_buffer_pop(SERIAL_USART_BUFFER *usart_buf) {
+SERIAL_USART_IT_BUFFERTYPE serial_usart_buffer_pop(volatile SERIAL_USART_BUFFER *usart_buf) {
   SERIAL_USART_IT_BUFFERTYPE t = 0;
   if (usart_buf->head != usart_buf->tail){
       t = usart_buf->buff[usart_buf->tail];
