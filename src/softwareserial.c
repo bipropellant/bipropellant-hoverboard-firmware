@@ -39,18 +39,18 @@ volatile unsigned int ssbits = 0;
 
 #define DOTX
 
-#define SOFTWARE_SERIAL_BUFFER_SIZE 256
+#define SOFTWARE_SERIAL_BUFFER_SIZE 1024
 typedef struct tag_SOFTWARE_SERIAL_BUFFER {
-    unsigned char buff[SOFTWARE_SERIAL_BUFFER_SIZE];
-    int head; 
-    int tail; 
-    int bit;
+    volatile unsigned char buff[SOFTWARE_SERIAL_BUFFER_SIZE];
+    volatile int head; 
+    volatile int tail; 
+    volatile int bit;
 
-    unsigned long lasttime;
-    char lastvalue;
+    volatile unsigned long lasttime;
+    volatile char lastvalue;
     
     // count of buffer overflows
-    unsigned int overflow;
+    volatile unsigned int overflow;
 
 } SOFTWARE_SERIAL_BUFFER;
 
@@ -95,8 +95,8 @@ void SoftwareSerialInit(void){
 #ifdef DOTX
 
   GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull  = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
   GPIO_InitStruct.Pin = SOFTWARE_SERIAL_TX_PIN;
   HAL_GPIO_Init(SOFTWARE_SERIAL_TX_PORT, &GPIO_InitStruct);
@@ -202,7 +202,7 @@ int softwareserial_Send(unsigned char *data, int len){
     if (count < 0) 
         count += SOFTWARE_SERIAL_BUFFER_SIZE;
 
-    if (count >= SOFTWARE_SERIAL_BUFFER_SIZE-2){
+    if (count + len >= SOFTWARE_SERIAL_BUFFER_SIZE-2){
         softwareserialTXbuffer.overflow++;
         return 0;
     }
@@ -304,7 +304,6 @@ void softwareserialRXInterrupt(void){
 void TIM3_IRQHandler(void){
     short t = -1;
 
-
     if (__HAL_TIM_GET_FLAG(&softwareserialtimerTX, TIM_IT_UPDATE) != RESET){
         __HAL_TIM_CLEAR_FLAG(&softwareserialtimerTX, TIM_IT_UPDATE);
     }
@@ -316,17 +315,21 @@ void TIM3_IRQHandler(void){
                 HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_RESET);
                 softwareserialTXbuffer.bit++;
                 break;
-            case 8: // send stop bit and next
-                HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_SET);
-                softwareserialTXbuffer.tail = ((softwareserialTXbuffer.tail + 1 ) % SOFTWARE_SERIAL_BUFFER_SIZE);
-                softwareserialTXbuffer.bit = -1;
-                ssbits++;
-                break;
             default:
-                if (t & (0x1 << softwareserialTXbuffer.bit)){
-                    HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_SET);
+                if (softwareserialTXbuffer.bit < 8){
+                    if (t & (0x1 << softwareserialTXbuffer.bit)){
+                        HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_SET);
+                    } else {
+                        HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_RESET);
+                    }
                 } else {
-                    HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_RESET);
+                    if (softwareserialTXbuffer.bit < 9){
+                        HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_SET);
+                    } else {
+                        HAL_GPIO_WritePin(SOFTWARE_SERIAL_TX_PORT, SOFTWARE_SERIAL_TX_PIN, GPIO_PIN_SET);
+                        softwareserialTXbuffer.tail = ((softwareserialTXbuffer.tail + 1 ) % SOFTWARE_SERIAL_BUFFER_SIZE);
+                        softwareserialTXbuffer.bit = -2; // will become -1 with ++ below
+                    }
                 }
                 softwareserialTXbuffer.bit++;
                 break;
