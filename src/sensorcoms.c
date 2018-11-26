@@ -49,43 +49,32 @@ int USART_sensorSend(int port, unsigned char *data, int len, int endframe){
 
 
 int USART_sensor_rxcount(int port){
-    switch(port){
-        case 0:
-            return  serial_usart_buffer_count(&usart2_it_RXbuffer);
-        case 1:
-            return  serial_usart_buffer_count(&usart3_it_RXbuffer);
+    if (port == 0){
+        return  serial_usart_buffer_count(&usart2_it_RXbuffer);
     }
+    return  serial_usart_buffer_count(&usart3_it_RXbuffer);
 }
 
 
 int USART_sensor_txcount(int port){
-    switch(port){
-        case 0:
-            return  serial_usart_buffer_count(&usart2_it_TXbuffer);
-        case 1:
-            return  serial_usart_buffer_count(&usart3_it_TXbuffer);
+    if (port == 0){
+        return  serial_usart_buffer_count(&usart2_it_TXbuffer);
     }
+    return  serial_usart_buffer_count(&usart3_it_TXbuffer);
 }
 
 void USART_sensor_addTXshort(int port, SERIAL_USART_IT_BUFFERTYPE value) {
-    switch(port){
-        case 0:
-            serial_usart_buffer_push(&usart2_it_TXbuffer, value);
-            break;
-        case 1:
-            serial_usart_buffer_push(&usart3_it_TXbuffer, value);
-            break;
-    } 
+    if (port == 0){
+        serial_usart_buffer_push(&usart2_it_TXbuffer, value);
+    }
+    serial_usart_buffer_push(&usart3_it_TXbuffer, value);
 }
 
 SERIAL_USART_IT_BUFFERTYPE USART_sensor_getrx(int port) {
-    switch(port){
-        case 0:
-            return serial_usart_buffer_pop(&usart2_it_RXbuffer);
-
-        case 1:
-            return serial_usart_buffer_pop(&usart3_it_RXbuffer);
-    } 
+    if (port == 0){
+        return serial_usart_buffer_pop(&usart2_it_RXbuffer);
+    }
+    return serial_usart_buffer_pop(&usart3_it_RXbuffer);
 }
 
 void sensor_init(){
@@ -96,15 +85,10 @@ void sensor_init(){
 ///////////////////////////
 // starts transmit from buffer on specific port, if data present
 int USART_sensor_starttx(int port){
-    switch(port){
-        case 0:
-            return USART2_IT_starttx();
-            break;
-        case 1:
-            return USART3_IT_starttx();
-            break;
+    if (port == 0){
+        return USART2_IT_starttx();
     }
-    return 0;
+    return USART3_IT_starttx();
 }
 
 

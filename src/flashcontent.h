@@ -53,9 +53,8 @@ extern FLASH_CONTENT FlashContent;
 
 extern const FLASH_CONTENT FlashDefaults;
 
-
-#ifdef CONTROL_SENSOR
-    #define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   1 }
-#else
-    #define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   0 }
+#ifndef FLASH_DEFAULT_HOVERBOARD_ENABLE
+#define FLASH_DEFAULT_HOVERBOARD_ENABLE 0
 #endif
+
+#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   FLASH_DEFAULT_HOVERBOARD_ENABLE }

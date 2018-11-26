@@ -1,6 +1,74 @@
 #pragma once
 #include "stm32f1xx_hal.h"
 
+//////////////////////////////////////////////////////////
+// macro types for the hoverboard control style
+// add to add other control combinations
+#define HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9 1
+#define USART2_CONTROLLED 2
+#define USART3_CONTROLLED 3
+#define SOFTWARE_SERIAL_A2_A3 4
+
+// thoery says this is the only thing you need to change....
+#define CONTROL_TYPE HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9
+//////////////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////////////
+// implementaiton of specific for macro control types
+// provide a short explaination here
+#if (CONTROL_TYPE == HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9)
+  // this control type allows the board to be used AS a hoverboard,
+  // responding to sensor movements when in hoverboard mode.
+  /// and uses softwareserial for serial control on B2/C9
+  #define READ_SENSOR
+  #define CONTROL_SENSOR
+  #define SOFTWARE_SERIAL
+  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2
+  #define SOFTWARE_SERIAL_RX_PORT GPIOB
+  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
+  #define SOFTWARE_SERIAL_TX_PORT GPIOC
+  //#define DEBUG_SERIAL_ASCII
+  #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
+#endif
+
+#if (CONTROL_TYPE == SOFTWARE_SERIAL_A2_A3)
+  // hoverboard sensor functionality is disabled
+  // and uses softwareserial for serial control on A2/A3 - 
+  // which are actually USART pins!
+  #define SOFTWARE_SERIAL
+  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2    // PB10/USART3_TX Pin29      PA2/USART2_TX/ADC123_IN2  Pin16
+  #define SOFTWARE_SERIAL_RX_PORT GPIOA
+  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_3    // PB11/USART3_RX Pin30      PA3/USART2_RX/ADC123_IN3  Pin17  
+  #define SOFTWARE_SERIAL_TX_PORT GPIOA
+  //#define DEBUG_SERIAL_ASCII
+#endif
+
+
+// implementaiton of specific for macro control types
+#if (CONTROL_TYPE == USART2_CONTROLLED)
+  // hoverboard sensor functionality is disabled
+  // and control is via USART2
+  #define SERIAL_USART2_IT
+  //#define DEBUG_SERIAL_ASCII
+#endif
+
+
+// implementaiton of specific for macro control types
+#if (CONTROL_TYPE == USART3_CONTROLLED)
+  // hoverboard sensor functionality is disabled
+  // and control is via USART3
+  #define SERIAL_USART3_IT
+  //#define DEBUG_SERIAL_ASCII
+#endif
+
+// end of macro control type definitions
+//////////////////////////////////////////////////////////
+
+
+
+
 // ############################### DO-NOT-TOUCH SETTINGS ###############################
 
 #define PWM_FREQ         16000      // PWM frequency in Hz
@@ -48,7 +116,7 @@
 //#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuck or lcd) is used!
 //#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
 //#define DEBUG_SERIAL_SERVOTERM
-#define DEBUG_SERIAL_ASCII          // "1:345 2:1337 3:0 4:0 5:0 6:0 7:0 8:0\r\n"
+//#define DEBUG_SERIAL_ASCII          // "1:345 2:1337 3:0 4:0 5:0 6:0 7:0 8:0\r\n"
 
 // ############################### INPUT ###############################
 
@@ -57,11 +125,9 @@
                                       // control via usart from eg an Arduino or raspberry
 // for Arduino, use void loop(void){ Serial.write((uint8_t *) &steer, sizeof(steer)); Serial.write((uint8_t *) &speed, sizeof(speed));delay(20); }
 
+//////////////////////////////////////////////////////////////////
 // CONTROL_SENSOR implements control from original sensor boards.
 // the baud rate is 52177 for GD32 baseed YST boards.
-#define READ_SENSOR
-#define CONTROL_SENSOR
-
 #if defined(READ_SENSOR)
   #define SERIAL_USART2_IT
   #define SERIAL_USART3_IT
@@ -81,7 +147,7 @@
   #define USART2_BAUD       115200                  // UART baud rate
   #define USART2_WORDLENGTH UART_WORDLENGTH_8B      // UART_WORDLENGTH_8B or UART_WORDLENGTH_9B
 
-  #define SERIAL_USART3_IT
+// #define SERIAL_USART3_IT
   #define USART3_BAUD       115200                  // UART baud rate
   #define USART3_WORDLENGTH UART_WORDLENGTH_8B      // UART_WORDLENGTH_8B or UART_WORDLENGTH_9B
 
@@ -118,18 +184,13 @@
 
 // ############################### SOFTWARE SERIAL ###############################
 //
-#define SOFTWARE_SERIAL
 //#define DEBUG_SOFTWARE_SERIAL
 // there should now be a free choice of serial GPIO pins
-#define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2
-#define SOFTWARE_SERIAL_RX_PORT GPIOB
-#define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
-#define SOFTWARE_SERIAL_TX_PORT GPIOC
 #define SOFTWARE_SERIAL_BAUD 9600
 
 // ############################### SERIAL PROTOCOL ###############################
+// enables processing of input characters through 'protocol.c'
 #define INCLUDE_PROTOCOL
-
 
 
 // ############################### DRIVING BEHAVIOR ###############################

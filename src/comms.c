@@ -95,13 +95,13 @@ void consoleLog(char *message)
     #endif
 
     #if defined DEBUG_SERIAL_SENSOR && defined CONTROL_SENSOR
-    USART_sensorSend(1, message, strlen(message), 0);
+    USART_sensorSend(1, (unsigned char *)message, strlen(message), 0);
     #else
       // TODO: Method to select which input is used for Protocol when both are active
       #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
-        USART2_IT_send(message, strlen(message));
+        USART2_IT_send((unsigned char *)message, strlen(message));
       #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
-        USART3_IT_send(message, strlen(message));
+        USART3_IT_send((unsigned char *)message, strlen(message));
       #else
         HAL_UART_Transmit_DMA(&huart2, (uint8_t *)message, strlen(message));
       #endif
