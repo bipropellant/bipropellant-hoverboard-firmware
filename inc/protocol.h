@@ -93,6 +93,15 @@ typedef struct tag_PROTOCOL_MSG {
     // checksum such that sum of bytes len to CS is zero     
 } PROTOCOL_MSG;
 
+typedef struct tag_PROTOCOL_MSG2 {
+    unsigned char SOM; // 0x02
+    unsigned char CI; // continuity counter
+    unsigned char len; // len is len of ALL bytes to follow, including CS
+    unsigned char bytes[253];  // variable number of data bytes, with a checksum on the end, cmd is first
+    // checksum such that sum of bytes len to CS is zero     
+} PROTOCOL_MSG2;
+
+
 // content of 'bytes' above, for single byte commands
 typedef struct tag_PROTOCOL_BYTES {
     unsigned char cmd; //
