@@ -348,7 +348,7 @@ int main(void) {
   
   unsigned int startup_counter = 0;
 
-  #ifdef INCLUDE_PROTOCOL
+  #ifdef INCLUDE_PROTOCOL // Required in protocol 2?
   int last_control_type = CONTROL_TYPE_NONE;
   #endif
 
@@ -365,6 +365,7 @@ int main(void) {
         while (softwareserial_available() > 0){
           //if (mb_update() < 0){  // only if we're modbus idle and not our address
             short inputc = softwareserial_getrx();
+            
             protocol_byte( (unsigned char) inputc );
           //}
         }
