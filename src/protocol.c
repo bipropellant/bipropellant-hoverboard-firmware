@@ -897,6 +897,8 @@ void ascii_process_msg(char *cmd, int len){
 // received without error
 void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
     PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes; 
+    send_serial_data((unsigned char *) "process\n", 8);
+
     switch (bytes->cmd){
         case PROTOCOL_CMD_READVAL:{
 
@@ -960,6 +962,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
             break;
 
         case PROTOCOL_CMD_TEST:
+            send_serial_data((unsigned char *) "test\n", 5);
             // just send it back!
             msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
             // note: original 'bytes' sent back, so leave len as is

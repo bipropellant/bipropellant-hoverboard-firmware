@@ -194,7 +194,10 @@ void protocol_byte( unsigned char byte ){
             s.last_char_time = HAL_GetTick();
             s.curr_msg.bytes[s.count++] = byte;
             s.CS += byte;
-            if (s.count == s.curr_msg.len){
+
+            if (s.count == s.curr_msg.len+1){
+                //send_serial_data((unsigned char *) " end ", 5);
+                //send_serial_data((unsigned char *) &s.CS, 1);
                 s.last_char_time = 0;
                 switch(s.curr_msg.bytes[0]){
                     case PROTOCOL_CMD_ACK:
@@ -286,13 +289,17 @@ void protocol_send_ack(unsigned char CI){
 int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes){
     int txcount = mpTxQueued();
     if ((s.send_state != PROTOCOL_TX_WAITING) && !txcount){
+        send_serial_data((unsigned char *) "S\n", 2);
+
         return protocol_send(len_bytes);
     }
+    send_serial_data((unsigned char *) "D\n", 2);
 
     // add to tx queue
     int total = len_bytes->len + 1; // +1 len
 
     if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
+        send_serial_data((unsigned char *) "O\n", 2);
         TxBuffer.overflow++;
         return -1;
     }
@@ -337,12 +344,14 @@ int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes){
 // private
 void protocol_send_raw(PROTOCOL_MSG2 *msg){
     unsigned char CS = 0;
-    unsigned char *src = &msg->CI;
     int i;
-    for (i = 0; i < msg->len+1; i++){
-        CS -= *(src++);
+    CS -= msg->CI;
+    CS -= msg->len;
+
+    for (i = 0; i < msg->len; i++){
+        CS -= msg->bytes[i];
     }
-    msg->bytes[i-1] = CS;
+    msg->bytes[i] = CS;
     send_serial_data((unsigned char *) msg, msg->len+4);
     s.send_state = PROTOCOL_TX_WAITING;
 }
@@ -351,6 +360,7 @@ void protocol_send_raw(PROTOCOL_MSG2 *msg){
 // called regularly from main.c
 // externed from protocol.h
 void protocol_tick(){
+    return ;
     s.last_tick_time = HAL_GetTick();
     switch(s.send_state){
         case PROTOCOL_TX_IDLE:{
