@@ -32,7 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef INCLUDE_PROTOCOL
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 
 typedef struct tag_PROTOCOL_STAT {
@@ -93,23 +93,23 @@ static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_
 
 
 extern void ascii_byte( unsigned char byte );
-extern void protocol2_process_message(PROTOCOL_MSG2 *msg);
+extern void protocol_process_message(PROTOCOL_MSG2 *msg);
 
-static void protocol2_send_nack(unsigned char CI);
-static void protocol2_send_ack(unsigned char CI);
+static void protocol_send_nack(unsigned char CI);
+static void protocol_send_ack(unsigned char CI);
 
-static int protocol2_send(PROTOCOL_MSG2 *msg);
-static void protocol2_send_raw(PROTOCOL_MSG2 *msg);
+static int protocol_send(PROTOCOL_MSG2 *msg);
+static void protocol_send_raw(PROTOCOL_MSG2 *msg);
 
 
-void protocol2_init(){
+void protocol_init(){
     memset(&s, 0, sizeof(s));
     s.timeout1 = 500;
     s.timeout2 = 100;
     s.allow_ascii = 1;
 }
 
-void protocol2_byte( unsigned char byte ){
+void protocol_byte( unsigned char byte ){
 
     switch(s.state){
         case PROTOCOL_STATE_BADCHAR:
@@ -174,7 +174,7 @@ void protocol2_byte( unsigned char byte ){
                         if (s.send_state == PROTOCOL_TX_WAITING){
                             // ignore CI
                             if (s.retries > 0){
-                                protocol2_send_raw(&s.curr_send_msg);
+                                protocol_send_raw(&s.curr_send_msg);
                                 s.last_send_time = HAL_GetTick();
                                 s.retries--;
                             } else {
@@ -188,12 +188,12 @@ void protocol2_byte( unsigned char byte ){
                         break;
                     default:
                         if (s.CS != 0){
-                            protocol2_send_nack(s.curr_msg.CI);
+                            protocol_send_nack(s.curr_msg.CI);
                         } else {
-                            protocol2_send_ack(s.curr_msg.CI);
+                            protocol_send_ack(s.curr_msg.CI);
                             // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
                             if (s.lastRXCI != s.curr_msg.CI){
-                                protocol2_process_message(&s.curr_msg);
+                                protocol_process_message(&s.curr_msg);
                             }
                             s.lastRXCI = s.curr_msg.CI;
                         }
@@ -206,31 +206,31 @@ void protocol2_byte( unsigned char byte ){
 }
 
 
-void protocol2_send_nack(unsigned char CI){
+void protocol_send_nack(unsigned char CI){
     char tmp[] = { PROTOCOL_SOM, CI, 2, PROTOCOL_CMD_NACK, 0 };
-    protocol2_send_raw((PROTOCOL_MSG2 *)tmp);
+    protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
-void protocol2_send_ack(unsigned char CI){
+void protocol_send_ack(unsigned char CI){
     char tmp[] = { PROTOCOL_SOM, CI, 2, PROTOCOL_CMD_ACK, 0 };
-    protocol2_send_raw((PROTOCOL_MSG2 *)tmp);
+    protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
 // do we need queueing here?
-int protocol2_send(PROTOCOL_MSG2 *msg){
+int protocol_send(PROTOCOL_MSG2 *msg){
     if (s.send_state == PROTOCOL_TX_WAITING){
         // 'If an end sends a message, it should not send another until an ACK has been received or all retries sent'
         return -1;
     }
     msg->CI = s.curr_send_msg.CI+1;
     memcpy(&s.curr_send_msg, msg, sizeof(s.curr_send_msg));
-    protocol2_send_raw(&s.curr_send_msg);
+    protocol_send_raw(&s.curr_send_msg);
     s.last_send_time = HAL_GetTick();
     s.retries = 2;
     return 0;
 }
 
-void protocol2_send_raw(PROTOCOL_MSG2 *msg){
+void protocol_send_raw(PROTOCOL_MSG2 *msg){
     unsigned char CS = 0;
     unsigned char *src = &msg->CI;
     int i;
@@ -252,7 +252,7 @@ void protocol_tick(){
             if ((s.last_tick_time - s.last_send_time) > s.timeout1){
                 // 'If an end does not receive an ACK response within (TIMEOUT1), it should resend the last message with the same CI, up to 2 retries'
                 if (s.retries > 0){
-                    protocol2_send_raw(&s.curr_send_msg);
+                    protocol_send_raw(&s.curr_send_msg);
                     s.last_send_time = HAL_GetTick();
                     s.retries--;
                 } else {
@@ -270,7 +270,7 @@ void protocol_tick(){
             // 'implement a mode where non SOM characters between messages cause (TIMEOUT2) to be started, 
             // resulting in a _NACK with CI of last received message + 1_.'
             if ((s.last_tick_time - s.last_char_time) > s.timeout2){
-                protocol2_send_nack(s.curr_msg.CI+1);
+                protocol_send_nack(s.curr_msg.CI+1);
                 s.last_char_time = 0;
                 s.state = PROTOCOL_STATE_IDLE;
             }
@@ -281,7 +281,7 @@ void protocol_tick(){
             // exceeds (TIMEOUT2), the incomming message should be discarded, 
             // and a NACK should be sent with the CI of the message in progress or zero if no CI received yet'
             if ((s.last_tick_time - s.last_char_time) > s.timeout2){
-                protocol2_send_nack(s.curr_msg.CI);
+                protocol_send_nack(s.curr_msg.CI);
                 s.last_char_time = 0;
                 s.state = PROTOCOL_STATE_IDLE;
             }

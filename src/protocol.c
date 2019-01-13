@@ -32,7 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef INCLUDE_PROTOCOL
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1)
 
 //////////////////////////////////////////////////////////
 // two new protocols are created, and simultaneously active
