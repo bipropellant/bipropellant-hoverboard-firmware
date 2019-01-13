@@ -32,7 +32,29 @@
 #include <string.h>
 #include <stdlib.h>
 
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1)
+
+//////////////////////////////////////////////////////////
+// things needed by main.c
+int control_type = 0;
+POSN_DATA PosnData = {
+    {0, 0},
+
+    200, // max pwm in posn mode
+    70, // min pwm in posn mode
+};
+SPEED_DATA SpeedData = {
+    {0, 0},
+
+    600, // max power (PWM)
+    -600,  // min power 
+    40 // minimum mm/s which we can ask for
+};
+//////////////////////////////////////////////////////////
+
+
+
+
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 //////////////////////////////////////////////////////////
 // two new protocols are created, and simultaneously active
@@ -110,7 +132,6 @@ extern int enablescope; // enable scope on values
 int speedB = 0;
 int steerB = 0;
 
-int control_type = 0;
 char *control_types[]={
     "none",
     "Position",
@@ -118,21 +139,6 @@ char *control_types[]={
     "PWM Direct"
 };
 
-POSN_DATA PosnData = {
-    {0, 0},
-
-    200, // max pwm in posn mode
-    70, // min pwm in posn mode
-};
-
-
-SPEED_DATA SpeedData = {
-    {0, 0},
-
-    600, // max power (PWM)
-    -600,  // min power 
-    40 // minimum mm/s which we can ask for
-};
 
 
 int speed_control = 0; // incicates protocol driven
@@ -143,40 +149,38 @@ int speed_control = 0; // incicates protocol driven
 /////////////////////////////////////////////////////////////
 // specify where to send data out of with a function pointer.
 #ifdef SOFTWARE_SERIAL
-int (*send_serial_data)( unsigned char *data, int len ) = softwareserial_Send;
-int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
+static int (*send_serial_data)( unsigned char *data, int len ) = softwareserial_Send;
+static int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
 #endif
 
 // TODO: Method to select which output is used for Protocol when both are active
 #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
 extern int USART2_IT_send(unsigned char *data, int len);
 
-int (*send_serial_data)( unsigned char *data, int len ) = USART2_IT_send;
-int (*send_serial_data_wait)( unsigned char *data, int len ) = USART2_IT_send;
+static int (*send_serial_data)( unsigned char *data, int len ) = USART2_IT_send;
+static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART2_IT_send;
 #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
 extern int USART3_IT_send(unsigned char *data, int len);
 
-int (*send_serial_data)( unsigned char *data, int len ) = USART3_IT_send;
-int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_send;
+static int (*send_serial_data)( unsigned char *data, int len ) = USART3_IT_send;
+static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_send;
 #endif
 
 #ifdef DEBUG_SERIAL_USART3
 // need to implement a buffering function here.
 // current DMA method needs attention...
-int nosend( unsigned char *data, int len ){ return 0; };
-int (*send_serial_data)( unsigned char *data, int len ) = nosend;
-int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
+static int nosend( unsigned char *data, int len ){ return 0; };
+static int (*send_serial_data)( unsigned char *data, int len ) = nosend;
+static int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
 #endif
 /////////////////////////////////////////////////////////////
+
+extern int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes);
 
 
 //////////////////////////////////////////////
 // variables and functions in support of parameters here
 //
-void protocol_send_nack();
-void protocol_send_ack();
-void protocol_send_test();
-
 
 // e.g. to gather two separate speed variables togther,
 typedef struct tag_SPEEDS{
@@ -310,77 +314,9 @@ PARAMSTAT params[] = {
 
 ///////////////////////////////////////////////////
 // local functions, not really for external usage
-void protocol_send_nack();
-void protocol_send(PROTOCOL_MSG *msg);
-void process_message(PROTOCOL_MSG *msg);
 int ascii_process_immediate(unsigned char byte);
 void ascii_process_msg(char *cmd, int len);
 void ascii_byte( unsigned char byte );
-
-
-
-///////////////////////////////////////////////////
-// local variables for handling the machine protocol, 
-// not really for external usage
-//
-typedef struct tag_PROTOCOL_STAT {
-    char state;
-    unsigned char CS;
-    unsigned char count;
-    unsigned int nonsync;
-    PROTOCOL_MSG curr_msg;
-} PROTOCOL_STAT;
-PROTOCOL_STAT s;
-
-#define PROTOCOL_STATE_IDLE 0
-#define PROTOCOL_STATE_WAIT_LEN 1
-#define PROTOCOL_STATE_WAIT_END 2
-///////////////////////////////////////////////////
-
-
-
-
-///////////////////////////////////////////////////
-// process incomming serial a byte at a time
-// and only when a complete, valid message is received,
-// process it.
-// msgs with invalid CS will get NACK response.
-void protocol_byte( unsigned char byte ){
-    switch(s.state){
-        case PROTOCOL_STATE_IDLE:
-            if (byte == PROTOCOL_SOM){
-                s.curr_msg.SOM = byte;
-                s.state = PROTOCOL_STATE_WAIT_LEN;
-                s.CS = 0;
-            } else {
-                //////////////////////////////////////////////////////
-                // if the byte was NOT SOM (02), then treat it as an 
-                // ascii protocol byte.  BOTH protocol can co-exist
-                ascii_byte( byte );
-                //////////////////////////////////////////////////////
-            }
-            break;
-        case PROTOCOL_STATE_WAIT_LEN:
-            s.curr_msg.len = byte;
-            s.count = 0;
-            s.CS += byte;
-            s.state = PROTOCOL_STATE_WAIT_END;
-            break;
-        case PROTOCOL_STATE_WAIT_END:
-            s.curr_msg.bytes[s.count++] = byte;
-            s.CS += byte;
-            if (s.count == s.curr_msg.len){
-                if (s.CS != 0){
-                    protocol_send_nack();
-                } else {
-                    process_message(&s.curr_msg);  // this should ack or return a message
-                }
-                s.state = PROTOCOL_STATE_IDLE;
-            }
-            break;
-    }
-}
-
 
 
 ///////////////////////////////////////////////////
@@ -923,15 +859,17 @@ void ascii_process_msg(char *cmd, int len){
                 switch (cmd[1]){
                     case 'A':
                     case 'a':
-                        protocol_send_ack();
+                        //protocol_send_ack();
                         break;
                     case 'N':
                     case 'n':
-                        protocol_send_nack();
+                        //protocol_send_nack();
                         break;
                     case 'T':
-                    case 't':
-                        protocol_send_test();
+                    case 't':{
+                            char tmp[] = { 5, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't' };
+                            protocol_post((PROTOCOL_LEN_ONWARDS*)tmp);
+                        }
                         break;
                 }
                 // CR before prompt.... after message
@@ -954,42 +892,10 @@ void ascii_process_msg(char *cmd, int len){
 
 
 
-
-/////////////////////////////////////////////
-// MACHINE PROTOCOL
-// functions in support of the operation of the machine protocol
-//
-void protocol_send_nack(){
-    char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_NACK, 0 };
-    protocol_send((PROTOCOL_MSG *)tmp);
-}
-
-void protocol_send_ack(){
-    char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_ACK, 0 };
-    protocol_send((PROTOCOL_MSG *)tmp);
-}
-
-void protocol_send_test(){
-    char tmp[] = { PROTOCOL_SOM, 6, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't', 0 };
-    protocol_send((PROTOCOL_MSG *)tmp);
-}
-
-
-void protocol_send(PROTOCOL_MSG *msg){
-    unsigned char CS = 0;
-    unsigned char *src = &msg->len;
-    for (int i = 0; i < msg->len; i++){
-        CS -= *(src++);
-    }
-    msg->bytes[msg->len-1] = CS;
-    send_serial_data((unsigned char *) msg, msg->len+2);
-}
-
-
 /////////////////////////////////////////////
 // a complete machineprotocl message has been 
 // received without error
-void process_message(PROTOCOL_MSG *msg){
+void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
     PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes; 
     switch (bytes->cmd){
         case PROTOCOL_CMD_READVAL:{
@@ -1005,18 +911,18 @@ void process_message(PROTOCOL_MSG *msg){
                     for (int j = 0; j < params[i].len; j++){
                         writevals->content[j] = *(src++);
                     }
-                    msg->len = 1+1+1+params[i].len+1;
+                    msg->len = 1+params[i].len;  // command + data len only
                     // send back with 'read' command plus data like write.
-                    protocol_send(msg);
+                    protocol_post(msg);
                     if (params[i].postread) params[i].postread();
                     break;
                 }
             }
             // nothing read
             if (i == sizeof(params)/sizeof(params[0])){
-                msg->len = 1+1+1+0+1;
+                msg->len = 1; // cmd only
                 // send back with 'read' command plus data like write.
-                protocol_send(msg);
+                protocol_post(msg);
             }
             break;
         }
@@ -1032,23 +938,23 @@ void process_message(PROTOCOL_MSG *msg){
                     for (int j = 0; j < params[i].len; j++){
                         *(dest++) = writevals->content[j];
                     }
-                    msg->len = 1+1+0+1;
+                    msg->len = 1; // cmd only
                     // send back with 'write' command with no data.
-                    protocol_send(msg);
+                    protocol_post(msg);
                     if (params[i].postwrite) params[i].postwrite();
                 }
             }
             // nothing written
             if (i == sizeof(params)/sizeof(params[0])){
-                msg->len = 1+1+1+0+1;
+                msg->len = 1; // cmd only
                 // send back with 'write' command plus data like write.
-                protocol_send(msg);
+                protocol_post(msg);
             }
             break;
         }
 
         case PROTOCOL_CMD_REBOOT:
-            protocol_send_ack();
+            //protocol_send_ack(); // we no longer ack from here
             HAL_Delay(500);
             HAL_NVIC_SystemReset();
             break;
@@ -1056,13 +962,14 @@ void process_message(PROTOCOL_MSG *msg){
         case PROTOCOL_CMD_TEST:
             // just send it back!
             msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
-            protocol_send(msg);
+            // note: original 'bytes' sent back, so leave len as is
+            protocol_post(msg);
             break;
 
         default:
             msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
-            msg->len = 2;
-            protocol_send(msg);
+            msg->len = 1;
+            protocol_post(msg);
             break;
     }
 }

@@ -348,9 +348,9 @@ int main(void) {
   
   unsigned int startup_counter = 0;
 
-  #ifdef INCLUDE_PROTOCOL // Required in protocol 2?
+  //#ifdef INCLUDE_PROTOCOL // Required in protocol 2?
   int last_control_type = CONTROL_TYPE_NONE;
-  #endif
+  //#endif
 
 
   while(1) {

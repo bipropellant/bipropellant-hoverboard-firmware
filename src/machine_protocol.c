@@ -35,6 +35,26 @@
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 
+#define MACHINE_PROTOCOL_TX_BUFFER_SIZE 1024
+typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
+    volatile unsigned char buff[MACHINE_PROTOCOL_TX_BUFFER_SIZE];
+    volatile int head; 
+    volatile int tail; 
+    
+    // count of buffer overflows
+    volatile unsigned int overflow;
+
+} MACHINE_PROTOCOL_TX_BUFFER;
+
+// buffer to hold waiting messages in
+MACHINE_PROTOCOL_TX_BUFFER TxBuffer;
+static int mpTxQueued();
+static unsigned char mpGetTxByte();
+static char mpGetTxMsg(unsigned char *dest);
+static void mpPutTx(unsigned char value);
+
+
+
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;
     unsigned long last_send_time;
@@ -75,7 +95,7 @@ PROTOCOL_STAT s;
 // specify where to send data out of with a function pointer.
 #ifdef SOFTWARE_SERIAL
 static int (*send_serial_data)( unsigned char *data, int len ) = softwareserial_Send;
-static int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
+//static int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
 #endif
 
 // TODO: Method to select which output is used for Protocol when both are active
@@ -83,22 +103,22 @@ static int (*send_serial_data_wait)( unsigned char *data, int len ) = softwarese
 extern int USART2_IT_send(unsigned char *data, int len);
 
 static int (*send_serial_data)( unsigned char *data, int len ) = USART2_IT_send;
-static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART2_IT_send;
+//static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART2_IT_send;
 #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
 extern int USART3_IT_send(unsigned char *data, int len);
 
 static int (*send_serial_data)( unsigned char *data, int len ) = USART3_IT_send;
-static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_send;
+//static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_send;
 #endif
 
 
 extern void ascii_byte( unsigned char byte );
-extern void protocol_process_message(PROTOCOL_MSG2 *msg);
+extern void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg);
 
 static void protocol_send_nack(unsigned char CI);
 static void protocol_send_ack(unsigned char CI);
 
-static int protocol_send(PROTOCOL_MSG2 *msg);
+static int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes);
 static void protocol_send_raw(PROTOCOL_MSG2 *msg);
 
 
@@ -157,6 +177,12 @@ void protocol_byte( unsigned char byte ){
                             if (s.curr_msg.CI == s.curr_send_msg.CI){
                                 s.last_send_time = 0;
                                 s.send_state = PROTOCOL_TX_IDLE; 
+                                // if we got ack, then try to send a next message
+                                int txcount = mpTxQueued();
+                                if (txcount){
+                                    // send from tx queue
+                                    protocol_send(NULL);
+                                }
                             } else {
                                 // ignore
                                 s.unwantedacks++;
@@ -179,6 +205,12 @@ void protocol_byte( unsigned char byte ){
                                 s.retries--;
                             } else {
                                 s.send_state = PROTOCOL_TX_IDLE; 
+                                // if we run out of retries, then try to send a next message
+                                int txcount = mpTxQueued();
+                                if (txcount){
+                                    // send from tx queue
+                                    protocol_send(NULL);
+                                }
                             }
                         } else {
                             // unsolicited NACK received?
@@ -193,7 +225,8 @@ void protocol_byte( unsigned char byte ){
                             protocol_send_ack(s.curr_msg.CI);
                             // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
                             if (s.lastRXCI != s.curr_msg.CI){
-                                protocol_process_message(&s.curr_msg);
+                                // protocol_process_message now takes len onwards
+                                protocol_process_message((PROTOCOL_LEN_ONWARDS*)&s.curr_msg.len);
                             }
                             s.lastRXCI = s.curr_msg.CI;
                         }
@@ -216,14 +249,55 @@ void protocol_send_ack(unsigned char CI){
     protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
+
+// returns:
+//  -1 - cannot even queue
+//  0 sent immediately
+//  1 queued for later TX
+int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes){
+    int txcount = mpTxQueued();
+    if ((s.send_state != PROTOCOL_TX_WAITING) && !txcount){
+        return protocol_send(len_bytes);
+    }
+
+    // add to tx queue
+    int total = len_bytes->len + 1; // +1 len
+
+    if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
+        TxBuffer.overflow++;
+        return -1;
+    }
+
+    char *src = (char *) len_bytes;
+    for (int i = 0; i < total; i++) {
+        mpPutTx(*(src++));
+    }
+
+    return 1; // added to queue
+}
+
+
 // do we need queueing here?
-int protocol_send(PROTOCOL_MSG2 *msg){
+// note: if NULL in, send from queue
+int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes){
     if (s.send_state == PROTOCOL_TX_WAITING){
         // 'If an end sends a message, it should not send another until an ACK has been received or all retries sent'
         return -1;
     }
-    msg->CI = s.curr_send_msg.CI+1;
-    memcpy(&s.curr_send_msg, msg, sizeof(s.curr_send_msg));
+    unsigned char CI = s.curr_send_msg.CI+1;
+    // if message input
+    if (len_bytes) {
+        s.curr_send_msg.CI = CI;
+        memcpy(&s.curr_send_msg.len, len_bytes, len_bytes->len + 1);
+    } else {
+        // else try to send from queue
+        int ismsg = mpGetTxMsg(&s.curr_send_msg.len);
+        if (ismsg){
+            s.curr_send_msg.CI = CI;
+        } else {
+            return -1; // nothing to send
+        }
+    }
     protocol_send_raw(&s.curr_send_msg);
     s.last_send_time = HAL_GetTick();
     s.retries = 2;
@@ -239,6 +313,7 @@ void protocol_send_raw(PROTOCOL_MSG2 *msg){
     }
     msg->bytes[i-1] = CS;
     send_serial_data((unsigned char *) msg, msg->len+3);
+    s.send_state = PROTOCOL_TX_WAITING;
 }
 
 
@@ -246,7 +321,13 @@ void protocol_send_raw(PROTOCOL_MSG2 *msg){
 void protocol_tick(){
     s.last_tick_time = HAL_GetTick();
     switch(s.send_state){
-        case PROTOCOL_TX_IDLE:
+        case PROTOCOL_TX_IDLE:{
+                int txcount = mpTxQueued();
+                if (txcount){
+                    // send from tx queue
+                    protocol_send(NULL);
+                }
+            }
             break;
         case PROTOCOL_TX_WAITING:
             if ((s.last_tick_time - s.last_send_time) > s.timeout1){
@@ -257,6 +338,12 @@ void protocol_tick(){
                     s.retries--;
                 } else {
                     s.send_state = PROTOCOL_TX_IDLE; 
+                    // if we run out of retries, then try to send a next message
+                    int txcount = mpTxQueued();
+                    if (txcount){
+                        // send from tx queue
+                        protocol_send(NULL);
+                    }
                 }
             }
             break;
@@ -290,6 +377,41 @@ void protocol_tick(){
 }
 
 
+int mpTxQueued(){
+    if (TxBuffer.head != TxBuffer.tail){
+        int count = TxBuffer.head - TxBuffer.tail;
+        if (count < 0){
+            count += MACHINE_PROTOCOL_TX_BUFFER_SIZE;
+        }
+        return count;
+    }
+    return 0;
+}
+
+unsigned char mpGetTxByte(){
+    short t = -1;
+    if (TxBuffer.head != TxBuffer.tail){
+        t = TxBuffer.buff[TxBuffer.tail];
+        TxBuffer.tail = ((TxBuffer.tail + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
+    }
+    return t;
+}
+
+char mpGetTxMsg(unsigned char *dest){
+    if (mpTxQueued()) {
+        unsigned char len = *(dest++) = mpGetTxByte(); // len of bytes to follow
+        for (int i = 0; i < len; i++) {
+            *(dest++) = mpGetTxByte(); // data
+        }
+        return 1; // we got a message
+    }
+    return 0;
+}
+
+void mpPutTx(unsigned char value){
+    TxBuffer.buff[TxBuffer.head] = value;
+    TxBuffer.head = ((TxBuffer.head + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
+}
 
 
 #endif // INCLUDE_PROTOCOL2

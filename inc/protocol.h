@@ -21,7 +21,6 @@
 
 #include "config.h"
 
-#ifdef INCLUDE_PROTOCOL
 
 
 /////////////////////////////////////////////////////////////////
@@ -65,9 +64,6 @@ typedef struct tag_SPEED_DATA {
 
 extern SPEED_DATA SpeedData;
 
-
-
-
 extern int control_type;
 #define CONTROL_TYPE_NONE 0
 #define CONTROL_TYPE_POSITION 1
@@ -75,6 +71,10 @@ extern int control_type;
 #define CONTROL_TYPE_PWM 3
 #define CONTROL_TYPE_MAX 4
 
+
+/////////////////////////////////////
+// the rest only if we have a protocol.
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 /////////////////////////////////////////////////////////////////
 // 'machine' protocol structures and definitions
@@ -96,11 +96,15 @@ typedef struct tag_PROTOCOL_MSG {
 typedef struct tag_PROTOCOL_MSG2 {
     unsigned char SOM; // 0x02
     unsigned char CI; // continuity counter
-    unsigned char len; // len is len of ALL bytes to follow, including CS
+    unsigned char len; // len is len of bytes to follow, NOT including CS
     unsigned char bytes[253];  // variable number of data bytes, with a checksum on the end, cmd is first
-    // checksum such that sum of bytes len to CS is zero     
+    // checksum such that sum of bytes CI to CS is zero     
 } PROTOCOL_MSG2;
 
+typedef struct tag_PROTOCOL_LEN_ONWARDS {
+    unsigned char len; // len is len of ALL bytes to follow, including CS
+    unsigned char bytes[253];  // variable number of data bytes, with a checksum on the end, cmd is first
+} PROTOCOL_LEN_ONWARDS;
 
 // content of 'bytes' above, for single byte commands
 typedef struct tag_PROTOCOL_BYTES {
