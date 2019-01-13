@@ -103,6 +103,24 @@ extern volatile uint16_t ppm_captured_value[PPM_NUM_CHANNELS+1];
 
 int milli_vel_error_sum = 0;
 
+///////////////////////////////////////////////////////////////
+// define where to get serial data for protocol.c
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+  #ifdef SOFTWARE_SERIAL
+    int (*serial_available)() = softwareserial_available;
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();} 
+  #elif SERIAL_USART2_IT && !READ_SENSOR // READ_SENSOR uses SERIAL_USART2_IT
+    int serial_available() { return serial_usart_buffer_count(&usart2_it_RXbuffer); }
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart2_it_RXbuffer);} 
+  #elif SERIAL_USART3_IT && !READ_SENSOR // READ_SENSOR uses SERIAL_USART3_IT
+    int serial_available() { return serial_usart_buffer_count(&usart3_it_RXbuffer); }
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart3_it_RXbuffer);} 
+  #else
+    int serial_available() { return 0 }
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0} 
+  #endif 
+#endif
+
 
 void poweroff() {
     if (ABS(speed) < 20) {
@@ -356,38 +374,20 @@ int main(void) {
   while(1) {
     startup_counter++;
 
-    #if defined(SOFTWARE_SERIAL) && defined(INCLUDE_PROTOCOL)
-      // service input serial into out protocol parser
-      // note: modbus expects to see a call > every ms
-      // BUT, we want to loop every 5.
+    #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
       unsigned long start = HAL_GetTick();
       while (HAL_GetTick() < start + DELAY_IN_MAIN_LOOP){
-        while (softwareserial_available() > 0){
-          //if (mb_update() < 0){  // only if we're modbus idle and not our address
-            short inputc = softwareserial_getrx();
-            
+        // note: serial_available & serial_getrx defined above depending upon serial
+        while ( serial_available() > 0 ) {
+            SERIAL_USART_IT_BUFFERTYPE inputc = serial_getrx();
             protocol_byte( (unsigned char) inputc );
-          //}
         }
+        // very (too?) regular tick to protocol.
+        protocol_tick();
       }
-    #else
+    #else // if no bytes to read, just do a delay
       HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
     #endif
-
-    // TODO: Method to select which input is used for Protocol when both are active
-    #if defined(SERIAL_USART2_IT) && defined(INCLUDE_PROTOCOL) && !defined(READ_SENSOR)
-      while (serial_usart_buffer_count(&usart2_it_RXbuffer) > 0) {
-        SERIAL_USART_IT_BUFFERTYPE inputc = serial_usart_buffer_pop(&usart2_it_RXbuffer);
-        protocol_byte( (unsigned char) inputc );
-      }
-    #elif defined(SERIAL_USART3_IT) && defined(INCLUDE_PROTOCOL) && !defined(READ_SENSOR)
-      while (serial_usart_buffer_count(&usart3_it_RXbuffer) > 0) {
-        SERIAL_USART_IT_BUFFERTYPE inputc = serial_usart_buffer_pop(&usart3_it_RXbuffer);
-        protocol_byte( (unsigned char) inputc );
-      }
-    #endif
-    
-
 
     cmd1 = 0;
     cmd2 = 0;

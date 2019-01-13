@@ -16,6 +16,14 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/*
+* usage:
+* call void protocol_byte( unsigned char byte ); with incoming bytes from main.call
+* will call protocol_process_message(PROTOCOL_LEN_ONWARDS *) when message received (protocol.c)
+* call protocol_post(PROTOCOL_LEN_ONWARDS *) to send a message
+*/
+
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
@@ -28,6 +36,12 @@
 #include <stdlib.h>
 
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1)
+
+
+// from protocol.c
+extern void ascii_byte( unsigned char byte );
+extern void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg);
+
 
 //////////////////////////////////////////////////////////
 // two new protocols are created, and simultaneously active
@@ -113,15 +127,14 @@ static int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
 //////////////////////////////////////////////
 // variables and functions in support of parameters here
 //
-void protocol_send_nack();
-void protocol_send_ack();
-void protocol_send_test();
-int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes);
+static void protocol_send_nack();
+static void protocol_send_ack();
+static void protocol_send_test();
 
 
 ///////////////////////////////////////////////////
 // local functions, not really for external usage
-void protocol_send(PROTOCOL_MSG *msg);
+static void protocol_send(PROTOCOL_MSG *msg);
 extern void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg);
 extern void ascii_byte( unsigned char byte );
 
@@ -152,6 +165,9 @@ PROTOCOL_STAT s;
 // and only when a complete, valid message is received,
 // process it.
 // msgs with invalid CS will get NACK response.
+//
+// called from main.c
+// externed in protocol.h
 void protocol_byte( unsigned char byte ){
     switch(s.state){
         case PROTOCOL_STATE_IDLE:
@@ -197,16 +213,20 @@ void protocol_byte( unsigned char byte ){
 // MACHINE PROTOCOL
 // functions in support of the operation of the machine protocol
 //
+// private
 void protocol_send_nack(){
     char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_NACK, 0 };
     protocol_send((PROTOCOL_MSG *)tmp);
 }
 
+// private
 void protocol_send_ack(){
     char tmp[] = { PROTOCOL_SOM, 2, PROTOCOL_CMD_ACK, 0 };
     protocol_send((PROTOCOL_MSG *)tmp);
 }
 
+// called to send a message.
+// just supply len|bytes - no SOM, CI, or CS
 int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes){
     PROTOCOL_MSG msg;
     msg.SOM = 0x02;
@@ -216,6 +236,7 @@ int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes){
     return 1;
 }
 
+// private
 void protocol_send(PROTOCOL_MSG *msg){
     unsigned char CS = 0;
     unsigned char *src = &msg->len;
@@ -226,5 +247,9 @@ void protocol_send(PROTOCOL_MSG *msg){
     send_serial_data((unsigned char *) msg, msg->len+2);
 }
 
+// called from main.c
+void protocol_tick(){
+    // do nothing in this protocol
+}
 
 #endif

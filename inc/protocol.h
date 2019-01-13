@@ -25,7 +25,9 @@
 
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
-void protocol_byte( unsigned char byte );
+extern void protocol_byte( unsigned char byte );
+// call this regularly from main.c
+extern void protocol_tick();
 /////////////////////////////////////////////////////////////////
 
 

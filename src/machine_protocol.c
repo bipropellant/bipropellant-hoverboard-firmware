@@ -16,6 +16,14 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/*
+* usage:
+* call void protocol_byte( unsigned char byte ); with incoming bytes from main.call
+* will call protocol_process_message(PROTOCOL_LEN_ONWARDS *) when message received (protocol.c)
+* call protocol_post(PROTOCOL_LEN_ONWARDS *) to send a message
+*/
+
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
@@ -34,7 +42,20 @@
 
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
+// from protocol.c
+extern void ascii_byte( unsigned char byte );
+extern void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg);
 
+
+
+
+
+
+//////////////////////////////////////////////////////////////////
+// protocol_post() uses this structure to store outgoing messages 
+// until they can be sent.
+// messages are stored only as len|data
+// SOM, CI, and CS are not included.
 #define MACHINE_PROTOCOL_TX_BUFFER_SIZE 1024
 typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
     volatile unsigned char buff[MACHINE_PROTOCOL_TX_BUFFER_SIZE];
@@ -52,6 +73,8 @@ static int mpTxQueued();
 static unsigned char mpGetTxByte();
 static char mpGetTxMsg(unsigned char *dest);
 static void mpPutTx(unsigned char value);
+//
+//////////////////////////////////////////////////////////////////
 
 
 
@@ -112,16 +135,16 @@ static int (*send_serial_data)( unsigned char *data, int len ) = USART3_IT_send;
 #endif
 
 
-extern void ascii_byte( unsigned char byte );
-extern void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg);
 
+// private to us
 static void protocol_send_nack(unsigned char CI);
 static void protocol_send_ack(unsigned char CI);
-
 static int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes);
 static void protocol_send_raw(PROTOCOL_MSG2 *msg);
 
 
+// called from main.c
+// externed in protocol.h
 void protocol_init(){
     memset(&s, 0, sizeof(s));
     s.timeout1 = 500;
@@ -129,6 +152,8 @@ void protocol_init(){
     s.allow_ascii = 1;
 }
 
+// called from main.c
+// externed in protocol.h
 void protocol_byte( unsigned char byte ){
 
     switch(s.state){
@@ -239,17 +264,21 @@ void protocol_byte( unsigned char byte ){
 }
 
 
+// private
 void protocol_send_nack(unsigned char CI){
     char tmp[] = { PROTOCOL_SOM, CI, 2, PROTOCOL_CMD_NACK, 0 };
     protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
+// private
 void protocol_send_ack(unsigned char CI){
     char tmp[] = { PROTOCOL_SOM, CI, 2, PROTOCOL_CMD_ACK, 0 };
     protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
 
+// called to send a message.
+// just supply len|bytes - no SOM, CI, or CS
 // returns:
 //  -1 - cannot even queue
 //  0 sent immediately
@@ -277,7 +306,7 @@ int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes){
 }
 
 
-// do we need queueing here?
+// private
 // note: if NULL in, send from queue
 int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes){
     if (s.send_state == PROTOCOL_TX_WAITING){
@@ -304,6 +333,8 @@ int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes){
     return 0;
 }
 
+
+// private
 void protocol_send_raw(PROTOCOL_MSG2 *msg){
     unsigned char CS = 0;
     unsigned char *src = &msg->CI;
@@ -317,7 +348,8 @@ void protocol_send_raw(PROTOCOL_MSG2 *msg){
 }
 
 
-// call regularly
+// called regularly from main.c
+// externed from protocol.h
 void protocol_tick(){
     s.last_tick_time = HAL_GetTick();
     switch(s.send_state){
