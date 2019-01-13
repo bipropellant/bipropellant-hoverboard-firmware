@@ -269,6 +269,11 @@ int main(void) {
     UART_Init();
   #endif
 
+  #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+    protocol_init();
+  #endif
+
+
   memset((void*)&electrical_measurements, 0, sizeof(electrical_measurements));
 
   HAL_GPIO_WritePin(OFF_PORT, OFF_PIN, 1);

@@ -28,6 +28,7 @@
 extern void protocol_byte( unsigned char byte );
 // call this regularly from main.c
 extern void protocol_tick();
+extern void protocol_init();
 /////////////////////////////////////////////////////////////////
 
 
@@ -99,7 +100,7 @@ typedef struct tag_PROTOCOL_MSG2 {
     unsigned char SOM; // 0x02
     unsigned char CI; // continuity counter
     unsigned char len; // len is len of bytes to follow, NOT including CS
-    unsigned char bytes[253];  // variable number of data bytes, with a checksum on the end, cmd is first
+    unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
     // checksum such that sum of bytes CI to CS is zero     
 } PROTOCOL_MSG2;
 

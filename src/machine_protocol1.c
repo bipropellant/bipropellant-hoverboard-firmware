@@ -128,7 +128,7 @@ static int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
 // variables and functions in support of parameters here
 //
 static void protocol_send_nack();
-static void protocol_send_ack();
+//static void protocol_send_ack();
 
 
 ///////////////////////////////////////////////////
@@ -157,7 +157,9 @@ PROTOCOL_STAT s;
 ///////////////////////////////////////////////////
 
 
-
+void protocol_init() {
+    
+}
 
 ///////////////////////////////////////////////////
 // process incomming serial a byte at a time

@@ -266,13 +266,13 @@ void protocol_byte( unsigned char byte ){
 
 // private
 void protocol_send_nack(unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM, CI, 2, PROTOCOL_CMD_NACK, 0 };
+    char tmp[] = { PROTOCOL_SOM, CI, 1, PROTOCOL_CMD_NACK, 0 };
     protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
 // private
 void protocol_send_ack(unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM, CI, 2, PROTOCOL_CMD_ACK, 0 };
+    char tmp[] = { PROTOCOL_SOM, CI, 1, PROTOCOL_CMD_ACK, 0 };
     protocol_send_raw((PROTOCOL_MSG2 *)tmp);
 }
 
@@ -343,7 +343,7 @@ void protocol_send_raw(PROTOCOL_MSG2 *msg){
         CS -= *(src++);
     }
     msg->bytes[i-1] = CS;
-    send_serial_data((unsigned char *) msg, msg->len+3);
+    send_serial_data((unsigned char *) msg, msg->len+4);
     s.send_state = PROTOCOL_TX_WAITING;
 }
 
