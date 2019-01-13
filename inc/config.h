@@ -13,6 +13,55 @@
 #define CONTROL_TYPE HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9
 //////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////
+// implementaiton of specific for macro control types
+// provide a short explaination here
+#if (CONTROL_TYPE == HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9)
+  // this control type allows the board to be used AS a hoverboard,
+  // responding to sensor movements when in hoverboard mode.
+  /// and uses softwareserial for serial control on B2/C9
+  #define READ_SENSOR
+  #define CONTROL_SENSOR
+  #define SOFTWARE_SERIAL
+  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2
+  #define SOFTWARE_SERIAL_RX_PORT GPIOB
+  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
+  #define SOFTWARE_SERIAL_TX_PORT GPIOC
+  //#define DEBUG_SERIAL_ASCII
+  #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
+#endif
+
+#if (CONTROL_TYPE == SOFTWARE_SERIAL_A2_A3)
+  // hoverboard sensor functionality is disabled
+  // and uses softwareserial for serial control on A2/A3 - 
+  // which are actually USART pins!
+  #define SOFTWARE_SERIAL
+  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2    // PB10/USART3_TX Pin29      PA2/USART2_TX/ADC123_IN2  Pin16
+  #define SOFTWARE_SERIAL_RX_PORT GPIOA
+  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_3    // PB11/USART3_RX Pin30      PA3/USART2_RX/ADC123_IN3  Pin17  
+  #define SOFTWARE_SERIAL_TX_PORT GPIOA
+  //#define DEBUG_SERIAL_ASCII
+#endif
+
+
+// implementaiton of specific for macro control types
+#if (CONTROL_TYPE == USART2_CONTROLLED)
+  // hoverboard sensor functionality is disabled
+  // and control is via USART2
+  #define SERIAL_USART2_IT
+  //#define DEBUG_SERIAL_ASCII
+#endif
+
+
+// implementaiton of specific for macro control types
+#if (CONTROL_TYPE == USART3_CONTROLLED)
+  // hoverboard sensor functionality is disabled
+  // and control is via USART3
+  #define SERIAL_USART3_IT
+  //#define DEBUG_SERIAL_ASCII
+#endif
+
+
 // ############################### DO-NOT-TOUCH SETTINGS ###############################
 
 #define PWM_FREQ         16000      // PWM frequency in Hz
@@ -137,6 +186,8 @@
 #define INCLUDE_PROTOCOL1 1 // enables processing of input characters through 'protocol.c'
 #define INCLUDE_PROTOCOL2 2 // enables processing of input characters through 'machine_protocol.c'
 
+//#define INCLUDE_PROTOCOL NO_PROTOCOL
+//#define INCLUDE_PROTOCOL INCLUDE_PROTOCOL1
 #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
 
 // ############################### DRIVING BEHAVIOR ###############################
@@ -171,53 +222,6 @@
 // #define SPEED_COEFFICIENT   0.5
 // #define STEER_COEFFICIENT   -0.2
 
-//////////////////////////////////////////////////////////
-// implementaiton of specific for macro control types
-// provide a short explaination here
-#if (CONTROL_TYPE == HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9)
-  // this control type allows the board to be used AS a hoverboard,
-  // responding to sensor movements when in hoverboard mode.
-  /// and uses softwareserial for serial control on B2/C9
-  #define READ_SENSOR
-  #define CONTROL_SENSOR
-  #define SOFTWARE_SERIAL
-  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2
-  #define SOFTWARE_SERIAL_RX_PORT GPIOB
-  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
-  #define SOFTWARE_SERIAL_TX_PORT GPIOC
-  //#define DEBUG_SERIAL_ASCII
-  #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
-#endif
-
-#if (CONTROL_TYPE == SOFTWARE_SERIAL_A2_A3)
-  // hoverboard sensor functionality is disabled
-  // and uses softwareserial for serial control on A2/A3 - 
-  // which are actually USART pins!
-  #define SOFTWARE_SERIAL
-  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2    // PB10/USART3_TX Pin29      PA2/USART2_TX/ADC123_IN2  Pin16
-  #define SOFTWARE_SERIAL_RX_PORT GPIOA
-  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_3    // PB11/USART3_RX Pin30      PA3/USART2_RX/ADC123_IN3  Pin17  
-  #define SOFTWARE_SERIAL_TX_PORT GPIOA
-  //#define DEBUG_SERIAL_ASCII
-#endif
-
-
-// implementaiton of specific for macro control types
-#if (CONTROL_TYPE == USART2_CONTROLLED)
-  // hoverboard sensor functionality is disabled
-  // and control is via USART2
-  #define SERIAL_USART2_IT
-  //#define DEBUG_SERIAL_ASCII
-#endif
-
-
-// implementaiton of specific for macro control types
-#if (CONTROL_TYPE == USART3_CONTROLLED)
-  // hoverboard sensor functionality is disabled
-  // and control is via USART3
-  #define SERIAL_USART3_IT
-  //#define DEBUG_SERIAL_ASCII
-#endif
 
 #if (INCLUDE_PROTOCOL == NO_PROTOCOL)
   #undef INCLUDE_PROTOCOL
