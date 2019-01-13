@@ -129,7 +129,6 @@ static int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
 //
 static void protocol_send_nack();
 static void protocol_send_ack();
-static void protocol_send_test();
 
 
 ///////////////////////////////////////////////////
