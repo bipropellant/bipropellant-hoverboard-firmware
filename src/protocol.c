@@ -897,7 +897,7 @@ void ascii_process_msg(char *cmd, int len){
 // received without error
 void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
     PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes; 
-    send_serial_data((unsigned char *) "process\n", 8);
+    //send_serial_data((unsigned char *) "process\n", 8);
 
     switch (bytes->cmd){
         case PROTOCOL_CMD_READVAL:{
@@ -913,7 +913,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                     for (int j = 0; j < params[i].len; j++){
                         writevals->content[j] = *(src++);
                     }
-                    msg->len = 1+params[i].len;  // command + data len only
+                    msg->len = 1+1+params[i].len;  // command + code + data len only
                     // send back with 'read' command plus data like write.
                     protocol_post(msg);
                     if (params[i].postread) params[i].postread();
@@ -922,7 +922,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
             }
             // nothing read
             if (i == sizeof(params)/sizeof(params[0])){
-                msg->len = 1; // cmd only
+                msg->len = 1+1; // cmd + code only
                 // send back with 'read' command plus data like write.
                 protocol_post(msg);
             }
@@ -940,7 +940,8 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                     for (int j = 0; j < params[i].len; j++){
                         *(dest++) = writevals->content[j];
                     }
-                    msg->len = 1; // cmd only
+                    msg->len = 1+1+1; // cmd+code+'1' only
+                    msg->bytes[2] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(msg);
                     if (params[i].postwrite) params[i].postwrite();
@@ -948,7 +949,8 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
             }
             // nothing written
             if (i == sizeof(params)/sizeof(params[0])){
-                msg->len = 1; // cmd only
+                msg->len = 1+1+1; // cmd +code +'0' only
+                msg->bytes[2] = 0; // say we did not write it
                 // send back with 'write' command plus data like write.
                 protocol_post(msg);
             }
