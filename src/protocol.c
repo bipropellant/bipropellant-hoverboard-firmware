@@ -967,6 +967,8 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
             msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
             // note: original 'bytes' sent back, so leave len as is
             protocol_post(msg);
+            // post second immediately to test buffering
+            protocol_post(msg);
             break;
 
         default:

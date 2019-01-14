@@ -161,6 +161,7 @@ void protocol_byte( unsigned char byte ){
         case PROTOCOL_STATE_IDLE:
             if (byte == PROTOCOL_SOM){
                 s.curr_msg.SOM = byte;
+                s.last_char_time = HAL_GetTick();
                 s.state = PROTOCOL_STATE_WAIT_CI;
                 s.CS = 0;
             } else {
@@ -289,17 +290,14 @@ void protocol_send_ack(unsigned char CI){
 int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes){
     int txcount = mpTxQueued();
     if ((s.send_state != PROTOCOL_TX_WAITING) && !txcount){
-        send_serial_data((unsigned char *) "S\n", 2);
 
         return protocol_send(len_bytes);
     }
-    send_serial_data((unsigned char *) "D\n", 2);
 
     // add to tx queue
     int total = len_bytes->len + 1; // +1 len
 
     if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
-        send_serial_data((unsigned char *) "O\n", 2);
         TxBuffer.overflow++;
         return -1;
     }
@@ -392,9 +390,6 @@ void protocol_tick(){
             break;
     }
 
-
-    // disable other timeouts temporarily.
-    return ;
 
     switch(s.state){
         case PROTOCOL_STATE_IDLE:
