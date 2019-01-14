@@ -45,6 +45,7 @@ typedef struct tag_HALL_DATA_STRUCT{
 
     float HallPosnMultiplier; // m per hall segment
 
+    long HallPosn_lastread; // posn offset set via protocol in raw value
     long HallPosn_mm; // posn in mm
     long HallPosn_mm_lastread; // posn offset set via protocol in mm
     long HallSpeed_mm_per_s; // speed in m/s

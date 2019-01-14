@@ -131,6 +131,33 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
 } PROTOCOL_BYTES_WRITEVALS;
 #pragma pack(pop)
 
+
+///////////////////////////////////////////////////
+// structure used to gather variables we want to read/write.
+#define PARAM_R     1
+#define PARAM_RW    3
+///////////////////////////////////////////////////
+#define UI_NONE 0
+#define UI_SHORT 1
+
+#pragma pack(push, 1)
+typedef struct tag_PARAMSTAT {
+    unsigned char code;     // code in protocol to refer to this
+    char *description;          // if non-null, description
+    char *uistr;          // if non-null, used in ascii protocol to adjust with f<str>num<cr>
+    char ui_type;           // only UI_NONE or UI_SHORT
+    void *ptr;              // pointer to value
+    char len;               // length of value
+    char rw;                // PARAM_R or PARAM_RW
+
+    void (*preread)(void);                // function to call after write
+    void (*postread)(void);                // function to call after write
+    void (*prewrite)(void);                // function to call after write
+    void (*postwrite)(void);                // function to call after write
+} PARAMSTAT;
+#pragma pack(pop)
+
+
 /////////////////////////////////////////////////////////
 // command definitions
 // ack - no payload
@@ -152,8 +179,17 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
 //
 /////////////////////////////////////////////////////////////////
 
+typedef struct tag_POSN {
+    long LeftAbsolute;
+    long RightAbsolute;
+    long LeftOffset;
+    long RightOffset;
+} POSN;
 
-
+typedef struct tag_POSN_INCR {
+    long Left;
+    long Right;
+} POSN_INCR;
 
 #endif
 
