@@ -335,6 +335,7 @@ int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes){
         }
     }
     protocol_send_raw(&s.curr_send_msg);
+    s.send_state = PROTOCOL_TX_WAITING;
     s.last_send_time = HAL_GetTick();
     s.retries = 2;
     return 0;
@@ -353,14 +354,12 @@ void protocol_send_raw(PROTOCOL_MSG2 *msg){
     }
     msg->bytes[i] = CS;
     send_serial_data((unsigned char *) msg, msg->len+4);
-    s.send_state = PROTOCOL_TX_WAITING;
 }
 
 
 // called regularly from main.c
 // externed from protocol.h
 void protocol_tick(){
-    return ;
     s.last_tick_time = HAL_GetTick();
     switch(s.send_state){
         case PROTOCOL_TX_IDLE:{
@@ -390,6 +389,10 @@ void protocol_tick(){
             }
             break;
     }
+
+
+    // disable other timeouts temporarily.
+    return ;
 
     switch(s.state){
         case PROTOCOL_STATE_IDLE:
