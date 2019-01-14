@@ -323,12 +323,14 @@ int protocol_send(PROTOCOL_LEN_ONWARDS *len_bytes){
     unsigned char CI = s.curr_send_msg.CI+1;
     // if message input
     if (len_bytes) {
+        s.curr_send_msg.SOM = PROTOCOL_SOM;
         s.curr_send_msg.CI = CI;
         memcpy(&s.curr_send_msg.len, len_bytes, len_bytes->len + 1);
     } else {
         // else try to send from queue
         int ismsg = mpGetTxMsg(&s.curr_send_msg.len);
         if (ismsg){
+            s.curr_send_msg.SOM = PROTOCOL_SOM;
             s.curr_send_msg.CI = CI;
         } else {
             return -1; // nothing to send
