@@ -109,15 +109,15 @@ int milli_vel_error_sum = 0;
   #ifdef SOFTWARE_SERIAL
     int (*serial_available)() = softwareserial_available;
     SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();} 
-  #elif SERIAL_USART2_IT && !READ_SENSOR // READ_SENSOR uses SERIAL_USART2_IT
+  #elif defined(SERIAL_USART2_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART2_IT
     int serial_available() { return serial_usart_buffer_count(&usart2_it_RXbuffer); }
     SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart2_it_RXbuffer);} 
-  #elif SERIAL_USART3_IT && !READ_SENSOR // READ_SENSOR uses SERIAL_USART3_IT
+  #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART3_IT
     int serial_available() { return serial_usart_buffer_count(&usart3_it_RXbuffer); }
     SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart3_it_RXbuffer);} 
   #else
-    int serial_available() { return 0 }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0} 
+    int serial_available() { return 0; }
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0; } 
   #endif 
 #endif
 
