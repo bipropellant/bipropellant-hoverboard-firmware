@@ -106,13 +106,13 @@ extern volatile uint32_t timeout; // global variable for timeout
 extern int dspeeds[2];
 extern int pwms[2];
 
-extern int debug_out;
-extern int disablepoweroff;
+extern uint8_t debug_out;
+extern uint8_t disablepoweroff;
 extern int powerofftimer;
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
 extern int buzzerLen;
-extern int enablescope; // enable scope on values
+extern uint8_t enablescope; // enable scope on values
 
 ///////////////////////////////////////////////
 
@@ -287,6 +287,8 @@ PARAMSTAT params[] = {
     { 0x07, NULL, NULL, UI_NONE, &RawPosition,       sizeof(RawPosition),    PARAM_RW,   
                 PreRead_getrawposnupdate, NULL,     NULL,                       PostWrite_setrawposnupdate },
     { 0x09, NULL, NULL, UI_NONE, &enable,            sizeof(enable),         PARAM_RW,   NULL, NULL, PreWrite_enable, NULL },
+    { 0x0A, NULL, NULL, UI_NONE, &disablepoweroff,   sizeof(disablepoweroff),PARAM_RW,   NULL, NULL, NULL, NULL },
+    { 0x0B, NULL, NULL, UI_NONE, &debug_out,         sizeof(debug_out),      PARAM_RW,   NULL, NULL, NULL, NULL },
 
     { 0x80, "flash magic", "m", UI_SHORT, &FlashContent.magic, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
 

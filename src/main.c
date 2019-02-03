@@ -67,7 +67,7 @@ int sensor_control = 0;
 int sensor_stabilise = 0;
 
 #endif
-int disablepoweroff = 0;
+uint8_t disablepoweroff = 0;
 int powerofftimer = 0;
 
 

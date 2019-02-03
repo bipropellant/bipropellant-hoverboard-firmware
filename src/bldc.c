@@ -23,7 +23,7 @@ extern volatile int speed;
 extern volatile adc_buf_t adc_buffer;
 
 extern volatile uint32_t timeout;
-extern int disablepoweroff;
+extern uint8_t disablepoweroff;
 
 uint32_t buzzerFreq = 0;
 uint32_t buzzerPattern = 0;
