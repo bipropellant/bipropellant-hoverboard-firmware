@@ -28,10 +28,14 @@
 #include "flashcontent.h"
 #include "flashaccess.h"
 #include "comms.h"
+#include "deadreckoner.h"
 
 #include <string.h>
 #include <stdlib.h>
 
+
+// ded reckoning posn
+extern INTEGER_XYT_POSN xytPosn;
 
 //////////////////////////////////////////////////////////
 // things needed by main.c
@@ -289,6 +293,7 @@ PARAMSTAT params[] = {
     { 0x09, NULL, NULL, UI_NONE, &enable,            sizeof(enable),         PARAM_RW,   NULL, NULL, PreWrite_enable, NULL },
     { 0x0A, NULL, NULL, UI_NONE, &disablepoweroff,   sizeof(disablepoweroff),PARAM_RW,   NULL, NULL, NULL, NULL },
     { 0x0B, NULL, NULL, UI_NONE, &debug_out,         sizeof(debug_out),      PARAM_RW,   NULL, NULL, NULL, NULL },
+    { 0x0C, NULL, NULL, UI_NONE, &xytPosn,           sizeof(xytPosn),      PARAM_RW,   NULL, NULL, NULL, NULL },
 
     { 0x80, "flash magic", "m", UI_SHORT, &FlashContent.magic, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
 

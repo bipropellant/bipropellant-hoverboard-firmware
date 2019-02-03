@@ -34,6 +34,7 @@
 #include "pid.h"
 #include "flashcontent.h"
 
+#include "deadreckoner.h"
 
 #include <memory.h>
 
@@ -102,6 +103,9 @@ extern volatile uint16_t ppm_captured_value[PPM_NUM_CHANNELS+1];
 #endif
 
 int milli_vel_error_sum = 0;
+
+DEADRECKONER *deadreconer;
+INTEGER_XYT_POSN xytPosn;
 
 ///////////////////////////////////////////////////////////////
 // define where to get serial data for protocol.c
@@ -257,6 +261,14 @@ int main(void) {
   /* SysTick_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
 
+#define WHEELBASE_MM 525.0
+  deadreconer = DeadReckoner(
+    & HallData[0].HallPosn, 
+    & HallData[1].HallPosn, 
+    HALL_POSN_PER_REV, 
+    (DEFAULT_WHEEL_SIZE_INCHES*25.4), 
+    WHEELBASE_MM, 1);
+
   SystemClock_Config();
 
   __HAL_RCC_DMA1_CLK_DISABLE();
@@ -378,6 +390,13 @@ int main(void) {
 
   while(1) {
     startup_counter++;
+    computePosition(deadreconer);
+    double x,y,t;
+    getXYT(deadreconer, &x, &y, &t);
+
+    xytPosn.x = (int)x;
+    xytPosn.y = (int)y;
+    xytPosn.degrees = (int)t;
 
     #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
       unsigned long start = HAL_GetTick();
