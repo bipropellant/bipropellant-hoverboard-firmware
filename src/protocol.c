@@ -98,6 +98,8 @@ extern int sensor_stabilise;
 
 // from main.c
 extern void change_PID_constants();
+extern void init_PID_control();
+
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
@@ -164,12 +166,38 @@ void PreRead_getspeeds(void){
     speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
 }
 
-// after write we call this...
-void PostWrite_setspeeds(void){
-   // SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
-   // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
+//////////////////////////////////////////////
+// make values safe before we change enable...
+void PreWrite_enable() {
+    if (!enable) {
+        // assume we will enable,
+        // set wanted posn to current posn, else we may rush into a wall
+        PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm; 
+        PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm; 
+
+        // clear speeds to zero
+        SpeedData.wanted_speed_mm_per_sec[0] = 0;
+        SpeedData.wanted_speed_mm_per_sec[1] = 0;
+        speedsx.speedl = 0;
+        speedsx.speedr = 0;
+        init_PID_control();
+
+    }
+}
+
+
+void PreWrite_setspeeds(void){
+    PreWrite_enable();
+    enable = 1;
     control_type = CONTROL_TYPE_PWM;
     timeout = 0;
+}
+
+
+// after write we call this...
+void PostWrite_setspeeds(void){
+    // SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
+    // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
 }
 
 POSN Position;
@@ -200,9 +228,22 @@ void PostWrite_setrawposnupdate(){
 }
 
 
+
 POSN_INCR PositionIncr;
 
 void PostWrite_incrementposition(){
+    // if switching to control type POSITION,
+    if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
+        control_type = CONTROL_TYPE_POSITION;
+        // then make sure we won't rush off somwehere strange
+        // by setting our wanted posn to where we currently are... 
+        PreWrite_enable();
+    }
+
+    enable = 1;
+    timeout = 0;
+
+    // increment our wanted position
     PosnData.wanted_posn_mm[0] += PositionIncr.Left; 
     PosnData.wanted_posn_mm[1] += PositionIncr.Right; 
 }
@@ -236,11 +277,16 @@ PARAMSTAT params[] = {
 #ifdef HALL_INTERRUPTS
     { 0x02, NULL, NULL, UI_NONE, (void *)&HallData,          sizeof(HallData),       PARAM_R,    NULL, NULL, NULL, NULL },
 #endif
-    { 0x03, NULL, NULL, UI_NONE, &SpeedData,         sizeof(SpeedData),      PARAM_RW,   PreRead_getspeeds, NULL, NULL, PostWrite_setspeeds },
-    { 0x04, NULL, NULL, UI_NONE, &Position,          sizeof(Position),       PARAM_RW,   PreRead_getposnupdate, NULL, NULL, PostWrite_setposnupdate },
-    { 0x05, NULL, NULL, UI_NONE, &PositionIncr,      sizeof(PositionIncr),   PARAM_RW,    NULL, NULL, NULL, PostWrite_incrementposition },
+    { 0x03, NULL, NULL, UI_NONE, &SpeedData,         sizeof(SpeedData),      PARAM_RW,   
+                PreRead_getspeeds,      NULL,       PreWrite_setspeeds,         PostWrite_setspeeds },
+    { 0x04, NULL, NULL, UI_NONE, &Position,          sizeof(Position),       PARAM_RW,   
+                PreRead_getposnupdate,  NULL,       NULL,                       PostWrite_setposnupdate },
+    { 0x05, NULL, NULL, UI_NONE, &PositionIncr,      sizeof(PositionIncr),   PARAM_RW,    
+                NULL,                   NULL,       NULL,                       PostWrite_incrementposition },
     { 0x06, NULL, NULL, UI_NONE, &PosnData,          sizeof(PosnData),       PARAM_RW,    NULL, NULL, NULL, NULL },
-    { 0x07, NULL, NULL, UI_NONE, &RawPosition,       sizeof(RawPosition),    PARAM_RW,   PreRead_getrawposnupdate, NULL, NULL, PostWrite_setrawposnupdate },
+    { 0x07, NULL, NULL, UI_NONE, &RawPosition,       sizeof(RawPosition),    PARAM_RW,   
+                PreRead_getrawposnupdate, NULL,     NULL,                       PostWrite_setrawposnupdate },
+    { 0x09, NULL, NULL, UI_NONE, &enable,            sizeof(enable),         PARAM_RW,   NULL, NULL, PreWrite_enable, NULL },
 
     { 0x80, "flash magic", "m", UI_SHORT, &FlashContent.magic, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
 
@@ -306,7 +352,11 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                     if (params[i].prewrite) params[i].prewrite();
                     // NOTE: re-uses the msg object (part of stats)
                     unsigned char *dest = params[i].ptr;
-                    for (int j = 0; j < params[i].len; j++){
+
+                    // ONLY copy what we have, else we're stuffing random data in.
+                    // e.g. is setting posn, structure is 8 x 4 bytes, 
+                    // but we often only want to set the first 8
+                    for (int j = 0; ((j < params[i].len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
                     msg->len = 1+1+1; // cmd+code+'1' only
@@ -314,6 +364,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                     // send back with 'write' command with no data.
                     protocol_post(msg);
                     if (params[i].postwrite) params[i].postwrite();
+                    break;
                 }
             }
             // nothing written
