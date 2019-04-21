@@ -1,5 +1,5 @@
 
-#include "DeadReckoner.h"
+#include "deadreckoner.h"
 #include <math.h>
 #include <stdlib.h>
 #include <memory.h>
