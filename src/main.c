@@ -309,6 +309,8 @@ int main(void) {
 
   init_PID_control();
 
+  electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
+
   for (int i = 8; i >= 0; i--) {
     buzzerFreq = i;
     HAL_Delay(100);
@@ -561,10 +563,12 @@ int main(void) {
                   //Change actuator value
                   int pwm = PositionPidFloats[i].out;
                   pwms[i] = pwm;
-                  if (i == 0){
-                    sprintf(tmp, "%d:%d\r\n", i, pwm);
-                    consoleLog(tmp);
-                  }
+                  #ifdef LOG_PWM
+                    if (i == 0){
+                      sprintf(tmp, "%d:%d\r\n", i, pwm);
+                      consoleLog(tmp);
+                    }
+                  #endif
                 }
               }
               break;
@@ -599,10 +603,12 @@ int main(void) {
                     pwms[i] = 
                       CLAMP(pwms[i] + pwm, -SpeedData.speed_max_power, SpeedData.speed_max_power);
                   }
+                  #ifdef LOG_PWM
                   if (i == 0){
                     sprintf(tmp, "%d:%d(%d) S:%d H:%d\r\n", i, pwms[i], pwm, (int)SpeedPidFloats[i].set, (int)SpeedPidFloats[i].in);
                     consoleLog(tmp);
                   }
+                  #endif
                 }
               }
               break;

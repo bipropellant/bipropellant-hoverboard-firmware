@@ -259,7 +259,7 @@ void DMA1_Channel1_IRQHandler() {
 #endif
 
   //disable PWM when current limit is reached (current chopping)
-  if(dclAmps > DC_CUR_LIMIT || timeout > TIMEOUT || enable == 0) {
+  if(dclAmps > electrical_measurements.dcCurLim || timeout > TIMEOUT || enable == 0) {
     LEFT_TIM->BDTR &= ~TIM_BDTR_MOE;
     //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
   } else {
@@ -267,7 +267,7 @@ void DMA1_Channel1_IRQHandler() {
     //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 0);
   }
 
-  if(dcrAmps > DC_CUR_LIMIT || timeout > TIMEOUT || enable == 0) {
+  if(dcrAmps > electrical_measurements.dcCurLim || timeout > TIMEOUT || enable == 0) {
     RIGHT_TIM->BDTR &= ~TIM_BDTR_MOE;
   } else {
     RIGHT_TIM->BDTR |= TIM_BDTR_MOE;

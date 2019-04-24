@@ -44,6 +44,8 @@ typedef struct tag_FLASH_CONTENT{
     unsigned short SpeedKdx100;
     unsigned short SpeedPWMIncrementLimit; // e.g. 20
 
+    unsigned short MaxCurrLim;
+
     unsigned short HoverboardEnable; // non zero to enable
     
 } FLASH_CONTENT;
@@ -57,4 +59,4 @@ extern const FLASH_CONTENT FlashDefaults;
 #define FLASH_DEFAULT_HOVERBOARD_ENABLE 0
 #endif
 
-#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,   FLASH_DEFAULT_HOVERBOARD_ENABLE }
+#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,    1500,   FLASH_DEFAULT_HOVERBOARD_ENABLE }

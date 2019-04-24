@@ -10,7 +10,7 @@
 #define SOFTWARE_SERIAL_A2_A3 4
 
 // thoery says this is the only thing you need to change....
-#define CONTROL_TYPE HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9
+#define CONTROL_TYPE USART2_CONTROLLED
 //////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////
@@ -189,6 +189,9 @@
 //#define INCLUDE_PROTOCOL NO_PROTOCOL
 //#define INCLUDE_PROTOCOL INCLUDE_PROTOCOL1
 #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
+
+// Log PWM value in position/speed control mode
+//define LOG_PWM
 
 // ############################### DRIVING BEHAVIOR ###############################
 
