@@ -10,7 +10,7 @@
 #define SOFTWARE_SERIAL_A2_A3 4
 
 // thoery says this is the only thing you need to change....
-#define CONTROL_TYPE USART2_CONTROLLED
+#define CONTROL_TYPE HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9
 //////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////
