@@ -77,7 +77,7 @@ extern uint8_t disablepoweroff;
 extern int powerofftimer;
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
-extern int buzzerLen;
+extern uint16_t buzzerLen;
 extern uint8_t enablescope; // enable scope on values
 
 static int speedB = 0;

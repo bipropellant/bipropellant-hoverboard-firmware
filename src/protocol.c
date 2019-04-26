@@ -53,6 +53,18 @@ SPEED_DATA SpeedData = {
     -600,  // min power 
     40 // minimum mm/s which we can ask for
 };
+
+PWM_STEER_CMD PwmSteerCmd = {
+    .base_pwm = 0,
+    .steer = 0,
+};
+
+BUZZER Buzzer = {
+    .buzzerFreq = 0,
+    .buzzerPattern = 0,
+    .buzzerLen = 0,
+};
+
 //////////////////////////////////////////////////////////
 
 
@@ -115,8 +127,10 @@ extern uint8_t disablepoweroff;
 extern int powerofftimer;
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
-extern int buzzerLen;
+extern uint16_t buzzerLen;
 extern uint8_t enablescope; // enable scope on values
+extern int steer; // global variable for steering. -1000 to 1000
+extern int speed; // global variable for speed. -1000 to 1000
 
 extern volatile ELECTRICAL_PARAMS electrical_measurements;
 
@@ -166,10 +180,26 @@ typedef struct tag_SPEEDS{
 } SPEEDS;
 static SPEEDS speedsx = {0,0};
 
+// after write we call this...
+void PostWrite_setbuzzer(void){
+    buzzerFreq      = Buzzer.buzzerFreq;
+    buzzerLen       = Buzzer.buzzerLen;
+    buzzerPattern   = Buzzer.buzzerPattern;
+}
+
+// before read we call this...
+void PreRead_getbuzzer(void){
+    Buzzer.buzzerFreq       = buzzerFreq;
+    Buzzer.buzzerLen        = buzzerLen;
+    Buzzer.buzzerPattern    = buzzerPattern;
+}
+
 // before read we call this...
 void PreRead_getspeeds(void){
     speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
     speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
+    PwmSteerCmd.base_pwm = speed;
+    PwmSteerCmd.steer = steer;
 }
 
 //////////////////////////////////////////////
@@ -280,42 +310,38 @@ static int version = 1;
 
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
-    { 0x00, NULL, NULL, UI_NONE, &version,           sizeof(version),        PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x00, NULL, NULL, UI_NONE, &version,          sizeof(version),         PARAM_R,  NULL,                     NULL, NULL,               NULL },
 #ifdef CONTROL_SENSOR
-    { 0x01, NULL, NULL, UI_NONE, &sensor_data,       sizeof(sensor_data),    PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x01, NULL, NULL, UI_NONE, &sensor_data,      sizeof(sensor_data),     PARAM_R,  NULL,                     NULL, NULL,               NULL },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, NULL, NULL, UI_NONE, (void *)&HallData,          sizeof(HallData),       PARAM_R,    NULL, NULL, NULL, NULL },
+    { 0x02, NULL, NULL, UI_NONE, (void *)&HallData, sizeof(HallData),        PARAM_R,  NULL,                     NULL, NULL,               NULL },
 #endif
-    { 0x03, NULL, NULL, UI_NONE, &SpeedData,         sizeof(SpeedData),      PARAM_RW,   
-                PreRead_getspeeds,      NULL,       PreWrite_setspeeds,         PostWrite_setspeeds },
-    { 0x04, NULL, NULL, UI_NONE, &Position,          sizeof(Position),       PARAM_RW,   
-                PreRead_getposnupdate,  NULL,       NULL,                       PostWrite_setposnupdate },
-    { 0x05, NULL, NULL, UI_NONE, &PositionIncr,      sizeof(PositionIncr),   PARAM_RW,    
-                NULL,                   NULL,       NULL,                       PostWrite_incrementposition },
-    { 0x06, NULL, NULL, UI_NONE, &PosnData,          sizeof(PosnData),       PARAM_RW,    NULL, NULL, NULL, NULL },
-    { 0x07, NULL, NULL, UI_NONE, &RawPosition,       sizeof(RawPosition),    PARAM_RW,   
-                PreRead_getrawposnupdate, NULL,     NULL,                       PostWrite_setrawposnupdate },
-    { 0x09, NULL, NULL, UI_NONE, &enable,            sizeof(enable),         PARAM_RW,   NULL, NULL, PreWrite_enable, NULL },
-    { 0x0A, NULL, NULL, UI_NONE, &disablepoweroff,   sizeof(disablepoweroff),PARAM_RW,   NULL, NULL, NULL, NULL },
-    { 0x0B, NULL, NULL, UI_NONE, &debug_out,         sizeof(debug_out),      PARAM_RW,   NULL, NULL, NULL, NULL },
-    { 0x0C, NULL, NULL, UI_NONE, &xytPosn,           sizeof(xytPosn),      PARAM_RW,   NULL, NULL, NULL, NULL },
+    { 0x03, NULL, NULL, UI_NONE, &SpeedData,        sizeof(SpeedData),       PARAM_RW, PreRead_getspeeds,        NULL, PreWrite_setspeeds, PostWrite_setspeeds },
+    { 0x04, NULL, NULL, UI_NONE, &Position,         sizeof(Position),        PARAM_RW, PreRead_getposnupdate,    NULL, NULL,               PostWrite_setposnupdate },
+    { 0x05, NULL, NULL, UI_NONE, &PositionIncr,     sizeof(PositionIncr),    PARAM_RW, NULL,                     NULL, NULL,               PostWrite_incrementposition },
+    { 0x06, NULL, NULL, UI_NONE, &PosnData,         sizeof(PosnData),        PARAM_RW, NULL,                     NULL, NULL,               NULL },
+    { 0x07, NULL, NULL, UI_NONE, &RawPosition,      sizeof(RawPosition),     PARAM_RW, PreRead_getrawposnupdate, NULL, NULL,               PostWrite_setrawposnupdate },
+    { 0x09, NULL, NULL, UI_NONE, &enable,           sizeof(enable),          PARAM_RW, NULL,                     NULL, PreWrite_enable,    NULL },
+    { 0x0A, NULL, NULL, UI_NONE, &disablepoweroff,  sizeof(disablepoweroff), PARAM_RW, NULL,                     NULL, NULL,               NULL },
+    { 0x0B, NULL, NULL, UI_NONE, &debug_out,        sizeof(debug_out),       PARAM_RW, NULL,                     NULL, NULL,               NULL },
+    { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL },
+    { 0x20, NULL, NULL, UI_NONE, &PwmSteerCmd,      sizeof(PwmSteerCmd),     PARAM_RW, NULL,                     NULL, NULL,               NULL },
+    { 0x21, NULL, NULL, UI_NONE, &Buzzer,           sizeof(Buzzer),          PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer },
 
-    { 0x80, "flash magic", "m", UI_SHORT, &FlashContent.magic, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
+    { 0x80, "flash magic",        "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
 
-    { 0x81, "posn kp x 100", "pkp", UI_SHORT, &FlashContent.PositionKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
-    { 0x82, "posn ki x 100", "pki", UI_SHORT, &FlashContent.PositionKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Position
-    { 0x83, "posn kd x 100", "pkd", UI_SHORT, &FlashContent.PositionKdx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
-    { 0x84, "posn pwm lim", "pl", UI_SHORT, &FlashContent.PositionPWMLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 200
+    { 0x81, "posn kp x 100",      "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x81, "posn ki x 100",      "pki", UI_SHORT, &FlashContent.PositionKix100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Position
+    { 0x83, "posn kd x 100",      "pkd", UI_SHORT, &FlashContent.PositionKdx100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x84, "posn pwm lim",       "pl",  UI_SHORT, &FlashContent.PositionPWMLimit,       sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 200
 
-    { 0x85, "speed kp x 100", "skp", UI_SHORT, &FlashContent.SpeedKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
-    { 0x86, "speed ki x 100", "ski", UI_SHORT, &FlashContent.SpeedKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Speed
-    { 0x87, "speed kd x 100", "skd", UI_SHORT, &FlashContent.SpeedKdx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
-    { 0x88, "speed pwm incr lim", "sl", UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 20
+    { 0x86, "speed kp x 100",     "skp", UI_SHORT, &FlashContent.SpeedKpx100,            sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x85, "speed ki x 100",     "ski", UI_SHORT, &FlashContent.SpeedKix100,            sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Speed
+    { 0x87, "speed kd x 100",     "skd", UI_SHORT, &FlashContent.SpeedKdx100,            sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x88, "speed pwm incr lim", "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 20
 
-    { 0x89, "max current limit x 100", "cl", UI_SHORT, &FlashContent.MaxCurrLim, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_Cur_Limit }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
-
-    { 0xA0, "hoverboard enable", "he", UI_SHORT, &FlashContent.HoverboardEnable, sizeof(short), PARAM_RW, NULL, NULL, NULL, NULL } // e.g. 20
+    { 0xA0, "hoverboard enable",  "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short), PARAM_RW, NULL, NULL, NULL, NULL } // e.g. 20
 };
 
 int paramcount = sizeof(params)/sizeof(params[0]);
