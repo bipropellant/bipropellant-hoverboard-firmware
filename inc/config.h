@@ -190,6 +190,9 @@
 //#define INCLUDE_PROTOCOL INCLUDE_PROTOCOL1
 #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
 
+// Log PWM value in position/speed control mode
+//define LOG_PWM
+
 // ############################### DRIVING BEHAVIOR ###############################
 
 // inputs:

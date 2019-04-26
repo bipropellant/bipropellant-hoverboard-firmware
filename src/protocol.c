@@ -118,6 +118,8 @@ extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 
 extern int buzzerLen;
 extern uint8_t enablescope; // enable scope on values
 
+extern volatile ELECTRICAL_PARAMS electrical_measurements;
+
 ///////////////////////////////////////////////
 
 
@@ -269,6 +271,10 @@ void PostWrite_PID(){
     change_PID_constants();
 }
 
+void PostWrite_Cur_Limit(){
+    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
+}
+
 
 static int version = 1;
 
@@ -297,15 +303,17 @@ PARAMSTAT params[] = {
 
     { 0x80, "flash magic", "m", UI_SHORT, &FlashContent.magic, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
 
-    { 0x82, "posn kp x 100", "pkp", UI_SHORT, &FlashContent.PositionKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
-    { 0x81, "posn ki x 100", "pki", UI_SHORT, &FlashContent.PositionKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Position
+    { 0x81, "posn kp x 100", "pkp", UI_SHORT, &FlashContent.PositionKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x82, "posn ki x 100", "pki", UI_SHORT, &FlashContent.PositionKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Position
     { 0x83, "posn kd x 100", "pkd", UI_SHORT, &FlashContent.PositionKdx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
     { 0x84, "posn pwm lim", "pl", UI_SHORT, &FlashContent.PositionPWMLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 200
 
-    { 0x86, "speed kp x 100", "skp", UI_SHORT, &FlashContent.SpeedKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
-    { 0x85, "speed ki x 100", "ski", UI_SHORT, &FlashContent.SpeedKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Speed
+    { 0x85, "speed kp x 100", "skp", UI_SHORT, &FlashContent.SpeedKpx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
+    { 0x86, "speed ki x 100", "ski", UI_SHORT, &FlashContent.SpeedKix100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // pid params for Speed
     { 0x87, "speed kd x 100", "skd", UI_SHORT, &FlashContent.SpeedKdx100, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
     { 0x88, "speed pwm incr lim", "sl", UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 20
+
+    { 0x89, "max current limit x 100", "cl", UI_SHORT, &FlashContent.MaxCurrLim, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_Cur_Limit }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
 
     { 0xA0, "hoverboard enable", "he", UI_SHORT, &FlashContent.HoverboardEnable, sizeof(short), PARAM_RW, NULL, NULL, NULL, NULL } // e.g. 20
 };
