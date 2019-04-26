@@ -139,34 +139,48 @@ extern volatile ELECTRICAL_PARAMS electrical_measurements;
 
 /////////////////////////////////////////////////////////////
 // specify where to send data out of with a function pointer.
+
 #ifdef SOFTWARE_SERIAL
-static int (*send_serial_data)( unsigned char *data, int len ) = softwareserial_Send;
-//static int (*send_serial_data_wait)( unsigned char *data, int len ) = softwareserial_Send_Wait;
+
+PROTOCOL_STAT sSoftwareSerial = {
+    .send_serial_data=softwareserial_Send,
+    .send_serial_data_wait=softwareserial_Send_Wait,
+    .timeout1 = 500,
+    .timeout2 = 100,
+    .allow_ascii = 1
+};
 #endif
 
-// TODO: Method to select which output is used for Protocol when both are active
 #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+
 extern int USART2_IT_send(unsigned char *data, int len);
 
-static int (*send_serial_data)( unsigned char *data, int len ) = USART2_IT_send;
-//static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART2_IT_send;
-#elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
-extern int USART3_IT_send(unsigned char *data, int len);
+PROTOCOL_STAT sUSART2 = {
+    .send_serial_data=USART2_IT_send,
+    .send_serial_data_wait=USART2_IT_send,
+    .timeout1 = 500,
+    .timeout2 = 100,
+    .allow_ascii = 1
+};
 
-static int (*send_serial_data)( unsigned char *data, int len ) = USART3_IT_send;
-//static int (*send_serial_data_wait)( unsigned char *data, int len ) = USART3_IT_send;
 #endif
 
-#ifdef DEBUG_SERIAL_USART3
-// need to implement a buffering function here.
-// current DMA method needs attention...
-static int nosend( unsigned char *data, int len ){ return 0; };
-static int (*send_serial_data)( unsigned char *data, int len ) = nosend;
-//static int (*send_serial_data_wait)( unsigned char *data, int len ) = nosend;
+#if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+
+extern int USART3_IT_send(unsigned char *data, int len);
+
+PROTOCOL_STAT sUSART3 = {
+    .send_serial_data=USART3_IT_send,
+    .send_serial_data_wait=USART3_IT_send,
+    .timeout1 = 500,
+    .timeout2 = 100,
+    .allow_ascii = 1
+};
+
 #endif
 /////////////////////////////////////////////////////////////
 
-extern int protocol_post(PROTOCOL_LEN_ONWARDS *len_bytes);
+extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes);
 
 
 //////////////////////////////////////////////
@@ -351,9 +365,8 @@ int paramcount = sizeof(params)/sizeof(params[0]);
 /////////////////////////////////////////////
 // a complete machineprotocl message has been 
 // received without error
-void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
     PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes; 
-    //send_serial_data((unsigned char *) "process\n", 8);
 
     switch (bytes->cmd){
         case PROTOCOL_CMD_READVAL:{
@@ -371,7 +384,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                     }
                     msg->len = 1+1+params[i].len;  // command + code + data len only
                     // send back with 'read' command plus data like write.
-                    protocol_post(msg);
+                    protocol_post(s, msg);
                     if (params[i].postread) params[i].postread();
                     break;
                 }
@@ -380,7 +393,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
             if (i == sizeof(params)/sizeof(params[0])){
                 msg->len = 1+1; // cmd + code only
                 // send back with 'read' command plus data like write.
-                protocol_post(msg);
+                protocol_post(s, msg);
             }
             break;
         }
@@ -403,7 +416,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                     msg->len = 1+1+1; // cmd+code+'1' only
                     msg->bytes[2] = 1; // say we wrote it
                     // send back with 'write' command with no data.
-                    protocol_post(msg);
+                    protocol_post(s, msg);
                     if (params[i].postwrite) params[i].postwrite();
                     break;
                 }
@@ -413,7 +426,7 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
                 msg->len = 1+1+1; // cmd +code +'0' only
                 msg->bytes[2] = 0; // say we did not write it
                 // send back with 'write' command plus data like write.
-                protocol_post(msg);
+                protocol_post(s, msg);
             }
             break;
         }
@@ -425,19 +438,18 @@ void protocol_process_message(PROTOCOL_LEN_ONWARDS *msg){
             break;
 
         case PROTOCOL_CMD_TEST:
-            send_serial_data((unsigned char *) "test\n", 5);
             // just send it back!
             msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
             // note: original 'bytes' sent back, so leave len as is
-            protocol_post(msg);
+            protocol_post(s, msg);
             // post second immediately to test buffering
-            protocol_post(msg);
+            protocol_post(s, msg);
             break;
 
         default:
             msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
             msg->len = 1;
-            protocol_post(msg);
+            protocol_post(s, msg);
             break;
     }
 }

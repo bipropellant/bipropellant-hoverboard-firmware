@@ -23,14 +23,6 @@
 
 
 
-/////////////////////////////////////////////////////////////////
-// call this with received bytes; normally from main loop
-extern void protocol_byte( unsigned char byte );
-// call this regularly from main.c
-extern void protocol_tick();
-extern void protocol_init();
-/////////////////////////////////////////////////////////////////
-
 
 //// control structures used in firmware
 typedef struct tag_POSN_DATA {
@@ -150,6 +142,61 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
     unsigned char code; // code of value to write
     unsigned char content[252]; // value to write
 } PROTOCOL_BYTES_WRITEVALS;
+
+
+
+//////////////////////////////////////////////////////////////////
+// protocol_post() uses this structure to store outgoing messages 
+// until they can be sent.
+// messages are stored only as len|data
+// SOM, CI, and CS are not included.
+#define MACHINE_PROTOCOL_TX_BUFFER_SIZE 1024
+typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
+    volatile unsigned char buff[MACHINE_PROTOCOL_TX_BUFFER_SIZE];
+    volatile int head; 
+    volatile int tail; 
+    
+    // count of buffer overflows
+    volatile unsigned int overflow;
+
+} MACHINE_PROTOCOL_TX_BUFFER;
+
+// buffer to hold waiting messages in
+MACHINE_PROTOCOL_TX_BUFFER TxBuffer;
+
+//////////////////////////////////////////////////////////
+
+
+typedef struct tag_PROTOCOL_STAT {
+    char allow_ascii;
+    unsigned long last_send_time;
+    unsigned long last_tick_time;
+
+    char state;
+    unsigned long last_char_time;
+    unsigned char CS;
+    unsigned char count;
+    unsigned int nonsync;
+    PROTOCOL_MSG2 curr_msg;
+    unsigned char lastRXCI;
+
+    unsigned int unwantedacks;
+    unsigned int unwantednacks;
+
+    char send_state;
+    PROTOCOL_MSG2 curr_send_msg;
+    char retries;
+
+    int timeout1;
+    int timeout2;
+
+    int (*send_serial_data)( unsigned char *data, int len );
+    int (*send_serial_data_wait)( unsigned char *data, int len );
+
+    MACHINE_PROTOCOL_TX_BUFFER TxBuffer;
+
+} PROTOCOL_STAT;
+
 #pragma pack(pop)
 
 
@@ -211,6 +258,18 @@ typedef struct tag_POSN_INCR {
     long Left;
     long Right;
 } POSN_INCR;
+extern PROTOCOL_STAT sUSART2;
+extern PROTOCOL_STAT sUSART3;
+extern PROTOCOL_STAT sSoftwareSerial;
+
+/////////////////////////////////////////////////////////////////
+// call this with received bytes; normally from main loop
+extern void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
+// call this regularly from main.c
+extern void protocol_tick(PROTOCOL_STAT *s);
+extern void protocol_init(PROTOCOL_STAT *s);
+/////////////////////////////////////////////////////////////////
+extern void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 
 
 #endif

@@ -112,17 +112,17 @@ INTEGER_XYT_POSN xytPosn;
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
   #ifdef SOFTWARE_SERIAL
     int (*serial_available)() = softwareserial_available;
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();} 
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();}
   #elif defined(SERIAL_USART2_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART2_IT
     int serial_available() { return serial_usart_buffer_count(&usart2_it_RXbuffer); }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart2_it_RXbuffer);} 
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart2_it_RXbuffer);}
   #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART3_IT
     int serial_available() { return serial_usart_buffer_count(&usart3_it_RXbuffer); }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart3_it_RXbuffer);} 
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart3_it_RXbuffer);}
   #else
     int serial_available() { return 0; }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0; } 
-  #endif 
+    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0; }
+  #endif
 #endif
 
 
@@ -190,7 +190,7 @@ void init_PID_control(){
   for (int i = 0; i < 2; i++){
     PositionPidFloats[i].in = 0;
     PositionPidFloats[i].set = 0;
-    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set, 
+    pid_create(&PositionPid[i], &PositionPidFloats[i].in, &PositionPidFloats[i].out, &PositionPidFloats[i].set,
       (float)FlashContent.PositionKpx100/100.0,
       (float)FlashContent.PositionKix100/100.0,
       (float)FlashContent.PositionKdx100/100.0);
@@ -200,7 +200,7 @@ void init_PID_control(){
   	pid_auto(&PositionPid[i]);
     SpeedPidFloats[i].in = 0;
     SpeedPidFloats[i].set = 0;
-    pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set, 
+    pid_create(&SpeedPid[i], &SpeedPidFloats[i].in, &SpeedPidFloats[i].out, &SpeedPidFloats[i].set,
       (float)FlashContent.SpeedKpx100/100.0,
       (float)FlashContent.SpeedKix100/100.0,
       (float)FlashContent.SpeedKdx100/100.0);
@@ -213,13 +213,13 @@ void init_PID_control(){
 
 void change_PID_constants(){
   for (int i = 0; i < 2; i++){
-    pid_tune(&PositionPid[i], 
+    pid_tune(&PositionPid[i],
       (float)FlashContent.PositionKpx100/100.0,
       (float)FlashContent.PositionKix100/100.0,
       (float)FlashContent.PositionKdx100/100.0);
   	pid_limits(&PositionPid[i], -FlashContent.PositionPWMLimit, FlashContent.PositionPWMLimit);
 
-    pid_tune(&SpeedPid[i], 
+    pid_tune(&SpeedPid[i],
       (float)FlashContent.SpeedKpx100/100.0,
       (float)FlashContent.SpeedKix100/100.0,
       (float)FlashContent.SpeedKdx100/100.0);
@@ -262,10 +262,10 @@ int main(void) {
 
 #define WHEELBASE_MM 525.0
   deadreconer = DeadReckoner(
-    & HallData[0].HallPosn, 
-    & HallData[1].HallPosn, 
-    HALL_POSN_PER_REV, 
-    (DEFAULT_WHEEL_SIZE_INCHES*25.4), 
+    & HallData[0].HallPosn,
+    & HallData[1].HallPosn,
+    HALL_POSN_PER_REV,
+    (DEFAULT_WHEEL_SIZE_INCHES*25.4),
     WHEELBASE_MM, 1);
 
   SystemClock_Config();
@@ -279,11 +279,6 @@ int main(void) {
   #if defined(DEBUG_SERIAL_USART2) || defined(DEBUG_SERIAL_USART3)
     UART_Init();
   #endif
-
-  #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
-    protocol_init();
-  #endif
-
 
   memset((void*)&electrical_measurements, 0, sizeof(electrical_measurements));
 
@@ -326,7 +321,7 @@ int main(void) {
   int OnBoard = 0;
   int Center[2] = {0, 0};
   int Clamp[2] =  {600, 600};
-  
+
   #endif
   #ifdef HALL_INTERRUPTS
     // enables interrupt reading of hall sensors for dead reconing wheel position.
@@ -381,7 +376,7 @@ int main(void) {
 
   // ####### POWEROFF BY POWER-BUTTON #######
   int power_button_held = HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
-  
+
   unsigned int startup_counter = 0;
 
   //#ifdef INCLUDE_PROTOCOL // Required in protocol 2?
@@ -405,10 +400,22 @@ int main(void) {
         // note: serial_available & serial_getrx defined above depending upon serial
         while ( serial_available() > 0 ) {
             SERIAL_USART_IT_BUFFERTYPE inputc = serial_getrx();
-            protocol_byte( (unsigned char) inputc );
+            #ifdef SOFTWARE_SERIAL
+              protocol_byte( &sSoftwareSerial, (unsigned char) inputc );
+            #elif defined SERIAL_USART2_IT
+              protocol_byte( &sUSART2, (unsigned char) inputc );
+            #elif defined SERIAL_USART3_IT
+              protocol_byte( &sUSART3, (unsigned char) inputc );
+            #endif
         }
         // very (too?) regular tick to protocol.
-        protocol_tick();
+        #ifdef SOFTWARE_SERIAL
+          protocol_tick( &sSoftwareSerial );
+        #elif defined SERIAL_USART2_IT
+          protocol_tick( &sUSART2 );
+        #elif defined SERIAL_USART3_IT
+          protocol_tick( &sUSART3 );
+        #endif
       }
     #else // if no bytes to read, just do a delay
       HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
@@ -462,7 +469,7 @@ int main(void) {
         sensor_read_data();
 
         // tapp one or other side twice in 2s, with at least 1/4s between to
-        // enable hoverboard mode. 
+        // enable hoverboard mode.
         if (CONTROL_TYPE_NONE == control_type){
           if (sensor_data[0].doubletap || sensor_data[1].doubletap){
             if (FlashContent.HoverboardEnable){
@@ -533,9 +540,9 @@ int main(void) {
               enable = 1;
             }
           }
-        } 
+        }
     #endif // end if control_sensor
-    
+
     #endif // READ_SENSOR
     #if defined(INCLUDE_PROTOCOL)||defined(READ_SENSOR)
     #ifdef READ_SENSOR
@@ -587,7 +594,7 @@ int main(void) {
                   if (ABS(SpeedData.wanted_speed_mm_per_sec[i]) < SpeedData.speed_minimum_speed){
                     SpeedPidFloats[i].set = 0;
                     belowmin = 1;
-                  } else {  
+                  } else {
                     SpeedPidFloats[i].set = SpeedData.wanted_speed_mm_per_sec[i];
                   }
                   SpeedPidFloats[i].in = SpeedPidFloats[i].in/(float)SpeedPidFloats[i].count;
@@ -599,7 +606,7 @@ int main(void) {
                   if (belowmin){
                     pwms[i] = 0;
                   } else {
-                    pwms[i] = 
+                    pwms[i] =
                       CLAMP(pwms[i] + pwm, -SpeedData.speed_max_power, SpeedData.speed_max_power);
                   }
                   #ifdef LOG_PWM
@@ -665,7 +672,7 @@ int main(void) {
       // ####### CALC BOARD TEMPERATURE #######
       board_temp_adc_filtered = board_temp_adc_filtered * 0.99 + (float)adc_buffer.temp * 0.01;
       board_temp_deg_c = ((float)TEMP_CAL_HIGH_DEG_C - (float)TEMP_CAL_LOW_DEG_C) / ((float)TEMP_CAL_HIGH_ADC - (float)TEMP_CAL_LOW_ADC) * (board_temp_adc_filtered - (float)TEMP_CAL_LOW_ADC) + (float)TEMP_CAL_LOW_DEG_C;
-      
+
       electrical_measurements.board_temp_raw = adc_buffer.temp;
       electrical_measurements.board_temp_filtered = board_temp_adc_filtered;
       electrical_measurements.board_temp_deg_c = board_temp_deg_c;
