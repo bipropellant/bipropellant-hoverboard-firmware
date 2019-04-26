@@ -16,10 +16,10 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PROCOTOL_H
-#define PROCOTOL_H
+#pragma once
 
 #include "config.h"
+#include <stdint.h>
 
 
 
@@ -112,7 +112,7 @@ typedef struct tag_PROTOCOL_LEN_ONWARDS {
 // content of 'bytes' above, for single byte commands
 typedef struct tag_PROTOCOL_BYTES {
     unsigned char cmd; //
-    unsigned char bytes[253];
+    unsigned char bytes[252];
 } PROTOCOL_BYTES;
 
 
@@ -191,6 +191,5 @@ typedef struct tag_POSN_INCR {
     long Right;
 } POSN_INCR;
 
-#endif
 
 #endif

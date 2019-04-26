@@ -241,7 +241,6 @@ void init_flash_content(){
 
 
 int main(void) {
-  char tmp[200];
   HAL_Init();
   __HAL_RCC_AFIO_CLK_ENABLE();
   HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
