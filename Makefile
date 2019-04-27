@@ -43,16 +43,15 @@ src/bldc.c \
 src/comms.c \
 src/sensorcoms.c \
 src/softwareserial.c \
-src/protocol.c \
+src/hbprotocol/protocol.c \
 src/hallinterrupts.c \
 src/flasharea.c \
 src/flashaccess.c \
 src/stm32f1xx_it.c \
 src/pid.c \
 src/deadreckoner.c \
-src/machine_protocol.c \
-src/machine_protocol1.c \
-src/ascii_protocol.c
+src/hbprotocol/machine_protocol.c \
+src/hbprotocol/ascii_protocol.c
 
 # ASM sources
 ASM_SOURCES =  \
@@ -101,6 +100,7 @@ AS_INCLUDES =
 # C includes
 C_INCLUDES =  \
 -Iinc \
+-Isrc/hbprotocol \
 -IDrivers/STM32F1xx_HAL_Driver/Inc \
 -IDrivers/STM32F1xx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32F1xx/Include \
