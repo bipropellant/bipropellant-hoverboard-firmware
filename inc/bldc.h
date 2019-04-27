@@ -14,7 +14,7 @@ typedef struct tag_ELECTRICAL_PARAMS{
 
     int charging;
 
-    unsigned short dcCurLim;
+    float dcCurLim;
 
     struct {
         float dcAmps;

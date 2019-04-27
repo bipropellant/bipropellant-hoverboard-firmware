@@ -77,7 +77,7 @@ extern uint8_t disablepoweroff;
 extern int powerofftimer;
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
-extern int buzzerLen;
+extern uint16_t buzzerLen;
 extern uint8_t enablescope; // enable scope on values
 
 static int speedB = 0;
@@ -203,7 +203,7 @@ int ascii_process_immediate(unsigned char byte){
         case 'W':
         case 'w':
             processed = 1;
-            if (!enable) { speedB = 0; steerB = 0; }
+            if (!enable) { speedB = 0; steerB = 0; PwmSteerCmd.base_pwm = 0; PwmSteerCmd.steer = 0; }
             enable = 1;
             timeout = 0;
 
@@ -216,6 +216,7 @@ int ascii_process_immediate(unsigned char byte){
                 case CONTROL_TYPE_SPEED:
                 case CONTROL_TYPE_PWM:
                     speedB += 10*dir;
+                    PwmSteerCmd.base_pwm += 10*dir;
                     SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
@@ -229,7 +230,7 @@ int ascii_process_immediate(unsigned char byte){
         case 'D':
         case 'd':
             processed = 1;
-            if (!enable) { speedB = 0; steerB = 0; }
+            if (!enable) { speedB = 0; steerB = 0; PwmSteerCmd.base_pwm = 0; PwmSteerCmd.steer = 0; }
             enable = 1;
             timeout = 0;
             switch (control_type){
@@ -241,6 +242,7 @@ int ascii_process_immediate(unsigned char byte){
                 case CONTROL_TYPE_SPEED:
                 case CONTROL_TYPE_PWM:
                     steerB += 10*dir;
+                    PwmSteerCmd.steer += 10*dir;
                     SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
@@ -253,6 +255,8 @@ int ascii_process_immediate(unsigned char byte){
             processed = 1;
             speedB = 0; 
             steerB = 0;
+            PwmSteerCmd.base_pwm = 0;
+            PwmSteerCmd.steer = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
             HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
             dspeeds[0] = dspeeds[1] = speedB;
@@ -272,6 +276,8 @@ int ascii_process_immediate(unsigned char byte){
             enable_immediate = 0;
             speedB = 0; 
             steerB = 0;
+            PwmSteerCmd.base_pwm = 0;
+            PwmSteerCmd.steer = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
             HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
             dspeeds[0] = dspeeds[1] = speedB;
@@ -606,6 +612,8 @@ void ascii_process_msg(char *cmd, int len){
         case 'i':
             speedB = 0; 
             steerB = 0;
+            PwmSteerCmd.base_pwm = 0;
+            PwmSteerCmd.steer = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
             dspeeds[0] = dspeeds[1] = speedB;
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;

@@ -16,10 +16,10 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PROCOTOL_H
-#define PROCOTOL_H
+#pragma once
 
 #include "config.h"
+#include <stdint.h>
 
 
 
@@ -67,6 +67,27 @@ typedef struct tag_SPEED_DATA {
 
 extern SPEED_DATA SpeedData;
 
+
+typedef struct {
+    uint8_t buzzerFreq;
+    uint8_t buzzerPattern;
+    uint16_t buzzerLen;
+} BUZZER;
+
+extern BUZZER Buzzer;
+
+
+typedef struct {
+    // both of these values are absolute values ranging from -1000 to 1000
+    // base_pwm plus/minus steer is the raw PWM value
+    // wether steer is added or substracted depends on the side R/L
+    int16_t base_pwm;
+    int16_t steer;
+} PWM_STEER_CMD;
+
+extern PWM_STEER_CMD PwmSteerCmd;
+
+
 extern int control_type;
 #define CONTROL_TYPE_NONE 0
 #define CONTROL_TYPE_POSITION 1
@@ -112,7 +133,7 @@ typedef struct tag_PROTOCOL_LEN_ONWARDS {
 // content of 'bytes' above, for single byte commands
 typedef struct tag_PROTOCOL_BYTES {
     unsigned char cmd; //
-    unsigned char bytes[253];
+    unsigned char bytes[252];
 } PROTOCOL_BYTES;
 
 
@@ -191,6 +212,5 @@ typedef struct tag_POSN_INCR {
     long Right;
 } POSN_INCR;
 
-#endif
 
 #endif
