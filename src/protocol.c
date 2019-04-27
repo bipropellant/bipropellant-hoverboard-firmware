@@ -19,38 +19,51 @@
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
-#include "sensorcoms.h"
+#ifdef CONTROL_SENSOR
+    #include "sensorcoms.h"
+#endif
 #include "protocol.h"
-#include "hallinterrupts.h"
-#include "softwareserial.h"
-#include "bldc.h"
-
-#include "flashcontent.h"
-#include "flashaccess.h"
+#ifdef HALL_INTERRUPTS
+    #include "hallinterrupts.h"
+#endif
+#ifdef SOFTWARE_SERIAL
+    #include "softwareserial.h"
+#endif
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
+    #include "bldc.h"
+#endif
+#ifdef FLASH_STORAGE
+    #include "flashcontent.h"
+    #include "flashaccess.h"
+#endif
 #include "comms.h"
-#include "deadreckoner.h"
+#ifndef EXCLUDE_DEADRECKONER
+    #include "deadreckoner.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
 
-
+#ifndef EXCLUDE_DEADRECKONER
 // ded reckoning posn
 extern INTEGER_XYT_POSN xytPosn;
-
+#endif
 //////////////////////////////////////////////////////////
 // things needed by main.c
 int control_type = 0;
+#ifdef HALL_INTERRUPTS
 POSN_DATA PosnData = {
     {0, 0},
 
     200, // max pwm in posn mode
     70, // min pwm in posn mode
 };
+#endif
 SPEED_DATA SpeedData = {
     {0, 0},
 
     600, // max power (PWM)
-    -600,  // min power 
+    -600,  // min power
     40 // minimum mm/s which we can ask for
 };
 
@@ -70,7 +83,7 @@ BUZZER Buzzer = {
 
 
 
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 //////////////////////////////////////////////////////////
 //
@@ -92,10 +105,10 @@ BUZZER Buzzer = {
 // or  can be stated as : (06+54+54+65+73+74+06)&0xff = 0
 //
 // if a message is received with invalid checksum, then nack will be sent.
-// if a message is received complete, it will with be responded to with a 
+// if a message is received complete, it will with be responded to with a
 // return message, or with the ack message
 //
-// for simplicities sake, we will treat the hoverboard controller as a 
+// for simplicities sake, we will treat the hoverboard controller as a
 // slave unit always - i.e. not ask it to send *unsolicited* messages.
 // in this way, it does not need to wait for ack, etc. from the host.
 // if the host gets a bad message, or no response, it can retry.
@@ -112,10 +125,11 @@ extern int sensor_control;
 extern int sensor_stabilise;
 #endif
 
+#ifdef FLASH_STORAGE
 // from main.c
 extern void change_PID_constants();
 extern void init_PID_control();
-
+#endif
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
@@ -132,8 +146,9 @@ extern uint8_t enablescope; // enable scope on values
 extern int steer; // global variable for steering. -1000 to 1000
 extern int speed; // global variable for speed. -1000 to 1000
 
-extern volatile ELECTRICAL_PARAMS electrical_measurements;
-
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
+    extern volatile ELECTRICAL_PARAMS electrical_measurements;
+#endif
 ///////////////////////////////////////////////
 
 
@@ -220,17 +235,21 @@ void PreRead_getspeeds(void){
 // make values safe before we change enable...
 void PreWrite_enable() {
     if (!enable) {
+#ifdef HALL_INTERRUPTS
         // assume we will enable,
         // set wanted posn to current posn, else we may rush into a wall
-        PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm; 
-        PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm; 
+        PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+        PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#endif
 
         // clear speeds to zero
         SpeedData.wanted_speed_mm_per_sec[0] = 0;
         SpeedData.wanted_speed_mm_per_sec[1] = 0;
         speedsx.speedl = 0;
         speedsx.speedr = 0;
+#ifdef FLASH_STORAGE
         init_PID_control();
+#endif
 
     }
 }
@@ -250,6 +269,7 @@ void PostWrite_setspeeds(void){
     // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
 }
 
+#ifdef HALL_INTERRUPTS
 POSN Position;
 POSN RawPosition;
 
@@ -262,7 +282,7 @@ void PreRead_getposnupdate(){
 
 void PostWrite_setposnupdate(){
     HallData[0].HallPosn_mm_lastread = Position.LeftAbsolute;
-    HallData[1].HallPosn_mm_lastread = Position.RightAbsolute; 
+    HallData[1].HallPosn_mm_lastread = Position.RightAbsolute;
 }
 
 void PreRead_getrawposnupdate(){
@@ -274,9 +294,8 @@ void PreRead_getrawposnupdate(){
 
 void PostWrite_setrawposnupdate(){
     HallData[0].HallPosn_lastread = RawPosition.LeftAbsolute;
-    HallData[1].HallPosn_lastread = RawPosition.RightAbsolute; 
+    HallData[1].HallPosn_lastread = RawPosition.RightAbsolute;
 }
-
 
 
 POSN_INCR PositionIncr;
@@ -286,7 +305,7 @@ void PostWrite_incrementposition(){
     if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
         control_type = CONTROL_TYPE_POSITION;
         // then make sure we won't rush off somwehere strange
-        // by setting our wanted posn to where we currently are... 
+        // by setting our wanted posn to where we currently are...
         PreWrite_enable();
     }
 
@@ -294,10 +313,13 @@ void PostWrite_incrementposition(){
     timeout = 0;
 
     // increment our wanted position
-    PosnData.wanted_posn_mm[0] += PositionIncr.Left; 
-    PosnData.wanted_posn_mm[1] += PositionIncr.Right; 
+    PosnData.wanted_posn_mm[0] += PositionIncr.Left;
+    PosnData.wanted_posn_mm[1] += PositionIncr.Right;
 }
 
+#endif
+
+#ifdef FLASH_STORAGE
 
 void PostWrite_writeflash(){
     if (FlashContent.magic != CURRENT_MAGIC){
@@ -318,6 +340,7 @@ void PostWrite_PID(){
 void PostWrite_Cur_Limit(){
     electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
 }
+#endif
 
 
 static int version = 1;
@@ -332,17 +355,22 @@ PARAMSTAT params[] = {
     { 0x02, NULL, NULL, UI_NONE, (void *)&HallData, sizeof(HallData),        PARAM_R,  NULL,                     NULL, NULL,               NULL },
 #endif
     { 0x03, NULL, NULL, UI_NONE, &SpeedData,        sizeof(SpeedData),       PARAM_RW, PreRead_getspeeds,        NULL, PreWrite_setspeeds, PostWrite_setspeeds },
+#ifdef HALL_INTERRUPTS
     { 0x04, NULL, NULL, UI_NONE, &Position,         sizeof(Position),        PARAM_RW, PreRead_getposnupdate,    NULL, NULL,               PostWrite_setposnupdate },
     { 0x05, NULL, NULL, UI_NONE, &PositionIncr,     sizeof(PositionIncr),    PARAM_RW, NULL,                     NULL, NULL,               PostWrite_incrementposition },
     { 0x06, NULL, NULL, UI_NONE, &PosnData,         sizeof(PosnData),        PARAM_RW, NULL,                     NULL, NULL,               NULL },
     { 0x07, NULL, NULL, UI_NONE, &RawPosition,      sizeof(RawPosition),     PARAM_RW, PreRead_getrawposnupdate, NULL, NULL,               PostWrite_setrawposnupdate },
+#endif
     { 0x09, NULL, NULL, UI_NONE, &enable,           sizeof(enable),          PARAM_RW, NULL,                     NULL, PreWrite_enable,    NULL },
     { 0x0A, NULL, NULL, UI_NONE, &disablepoweroff,  sizeof(disablepoweroff), PARAM_RW, NULL,                     NULL, NULL,               NULL },
     { 0x0B, NULL, NULL, UI_NONE, &debug_out,        sizeof(debug_out),       PARAM_RW, NULL,                     NULL, NULL,               NULL },
+#ifndef EXCLUDE_DEADRECKONER
     { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL },
+#endif
     { 0x20, NULL, NULL, UI_NONE, &PwmSteerCmd,      sizeof(PwmSteerCmd),     PARAM_RW, NULL,                     NULL, NULL,               NULL },
     { 0x21, NULL, NULL, UI_NONE, &Buzzer,           sizeof(Buzzer),          PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer },
 
+#ifdef FLASH_STORAGE
     { 0x80, "flash magic",        "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
 
     { 0x81, "posn kp x 100",      "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID },
@@ -356,6 +384,7 @@ PARAMSTAT params[] = {
     { 0x88, "speed pwm incr lim", "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID }, // e.g. 20
 
     { 0xA0, "hoverboard enable",  "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short), PARAM_RW, NULL, NULL, NULL, NULL } // e.g. 20
+#endif
 };
 
 int paramcount = sizeof(params)/sizeof(params[0]);
@@ -363,10 +392,10 @@ int paramcount = sizeof(params)/sizeof(params[0]);
 
 
 /////////////////////////////////////////////
-// a complete machineprotocl message has been 
+// a complete machineprotocl message has been
 // received without error
 void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
-    PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes; 
+    PROTOCOL_BYTES *bytes = (PROTOCOL_BYTES *)msg->bytes;
 
     switch (bytes->cmd){
         case PROTOCOL_CMD_READVAL:{
@@ -408,7 +437,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                     unsigned char *dest = params[i].ptr;
 
                     // ONLY copy what we have, else we're stuffing random data in.
-                    // e.g. is setting posn, structure is 8 x 4 bytes, 
+                    // e.g. is setting posn, structure is 8 x 4 bytes,
                     // but we often only want to set the first 8
                     for (int j = 0; ((j < params[i].len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];

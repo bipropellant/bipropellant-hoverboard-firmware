@@ -109,7 +109,7 @@ INTEGER_XYT_POSN xytPosn;
 
 ///////////////////////////////////////////////////////////////
 // define where to get serial data for protocol.c
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
   #ifdef SOFTWARE_SERIAL
     int (*serial_available)() = softwareserial_available;
     SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();}
@@ -227,6 +227,7 @@ void change_PID_constants(){
   }
 }
 
+#ifdef FLASH_CONTENT
 void init_flash_content(){
   FLASH_CONTENT FlashRead;
   int len = readFlash( (unsigned char *)&FlashRead, sizeof(FlashRead) );
@@ -238,6 +239,7 @@ void init_flash_content(){
   }
   memcpy(&FlashContent, &FlashRead, sizeof(FlashContent));
 }
+#endif
 
 
 int main(void) {
@@ -261,12 +263,14 @@ int main(void) {
   HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
 
 #define WHEELBASE_MM 525.0
+#ifdef HALL_INTERRUPTS
   deadreconer = DeadReckoner(
     & HallData[0].HallPosn,
     & HallData[1].HallPosn,
     HALL_POSN_PER_REV,
     (DEFAULT_WHEEL_SIZE_INCHES*25.4),
     WHEELBASE_MM, 1);
+#endif
 
   SystemClock_Config();
 
@@ -298,10 +302,11 @@ int main(void) {
   USART3_IT_init();
   #endif
 
-
+#ifdef FLASH_CONTENT
   init_flash_content();
 
   init_PID_control();
+#endif
 
   electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
 
@@ -394,7 +399,7 @@ int main(void) {
     xytPosn.y = (int)y;
     xytPosn.degrees = (int)t;
 
-    #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+    #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
       unsigned long start = HAL_GetTick();
       while (HAL_GetTick() < start + DELAY_IN_MAIN_LOOP){
         // note: serial_available & serial_getrx defined above depending upon serial
@@ -562,8 +567,10 @@ int main(void) {
               for (int i = 0; i < 2; i++){
                 if (pid_need_compute(&PositionPid[i])) {
                   // Read process feedback
+#ifdef HALL_INTERRUPTS
                   PositionPidFloats[i].set = PosnData.wanted_posn_mm[i];
                   PositionPidFloats[i].in = HallData[i].HallPosn_mm;
+#endif
                   // Compute new PID output value
                   pid_compute(&PositionPid[i]);
                   //Change actuator value
@@ -581,7 +588,9 @@ int main(void) {
             case CONTROL_TYPE_SPEED:
               for (int i = 0; i < 2; i++){
                 // average speed over all the loops until pid_need_compute() returns !=0
+#ifdef HALL_INTERRUPTS
                 SpeedPidFloats[i].in += HallData[i].HallSpeed_mm_per_s;
+#endif
                 SpeedPidFloats[i].count++;
                 if (!enable){ // don't want anything building up
                   SpeedPidFloats[i].in = 0;

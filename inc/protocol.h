@@ -90,7 +90,7 @@ extern int control_type;
 
 /////////////////////////////////////
 // the rest only if we have a protocol.
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 /////////////////////////////////////////////////////////////////
 // 'machine' protocol structures and definitions
@@ -106,7 +106,7 @@ typedef struct tag_PROTOCOL_MSG {
     unsigned char SOM; // 0x02
     unsigned char len; // len is len of ALL bytes to follow, including CS
     unsigned char bytes[254];  // variable number of data bytes, with a checksum on the end
-    // checksum such that sum of bytes len to CS is zero     
+    // checksum such that sum of bytes len to CS is zero
 } PROTOCOL_MSG;
 
 typedef struct tag_PROTOCOL_MSG2 {
@@ -114,7 +114,7 @@ typedef struct tag_PROTOCOL_MSG2 {
     unsigned char CI; // continuity counter
     unsigned char len; // len is len of bytes to follow, NOT including CS
     unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
-    // checksum such that sum of bytes CI to CS is zero     
+    // checksum such that sum of bytes CI to CS is zero
 } PROTOCOL_MSG2;
 
 typedef struct tag_PROTOCOL_LEN_ONWARDS {
@@ -146,16 +146,16 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
 
 
 //////////////////////////////////////////////////////////////////
-// protocol_post() uses this structure to store outgoing messages 
+// protocol_post() uses this structure to store outgoing messages
 // until they can be sent.
 // messages are stored only as len|data
 // SOM, CI, and CS are not included.
 #define MACHINE_PROTOCOL_TX_BUFFER_SIZE 1024
 typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
     volatile unsigned char buff[MACHINE_PROTOCOL_TX_BUFFER_SIZE];
-    volatile int head; 
-    volatile int tail; 
-    
+    volatile int head;
+    volatile int tail;
+
     // count of buffer overflows
     volatile unsigned int overflow;
 

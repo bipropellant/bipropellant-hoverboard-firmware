@@ -189,8 +189,10 @@ volatile int counts_to_change = 0;
 // Careful - easy to use too many!
 void DMA1_Channel1_IRQHandler() {
   __disable_irq(); // but we want both values at the same time, without interferance
+#ifdef HALL_INTERRUPTS
   unsigned long time = h_timer_hall.Instance->CNT;
   long long timerwraps_copy = timerwraps;
+#endif
   unsigned char hall[2];
   hall[0] = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
   hall[1] = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
@@ -202,6 +204,7 @@ void DMA1_Channel1_IRQHandler() {
   // so we assume this one will...
   // and use this to chose one of 16 phases
   // which we'll modulate the pwm with?
+#ifdef HALL_INTERRUPTS
   long long timenow = (timerwraps_copy << 16) | time;
   char fraction[2];
   for (int i = 0; i < 2; i++){
@@ -218,6 +221,7 @@ void DMA1_Channel1_IRQHandler() {
     fraction[i] = dta;
     if (fraction[i] > 15) fraction[i] = 15;
   }
+#endif
 
   DMA1->IFCR = DMA_IFCR_CTCIF1;
   // HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
@@ -235,9 +239,9 @@ void DMA1_Channel1_IRQHandler() {
 
   if (buzzerTimer % 1000 == 0) {  // because you get float rounding errors if it would run every time
     batteryVoltage = batteryVoltage * 0.99 + ((float)adc_buffer.batt1 * ((float)BAT_CALIB_REAL_VOLTAGE / (float)BAT_CALIB_ADC)) * 0.01;
-//#ifdef DO_MEASUREMENTS    
+//#ifdef DO_MEASUREMENTS
     electrical_measurements.batteryVoltage = batteryVoltage;
-//#endif    
+//#endif
   }
 
   float dclAmps = ((float)ABS(adc_buffer.dcl - offsetdcl) * MOTOR_AMP_CONV_DC_AMP);
@@ -246,7 +250,7 @@ void DMA1_Channel1_IRQHandler() {
   electrical_measurements.motors[0].dcAmps = dclAmps;
   electrical_measurements.motors[1].dcAmps = dcrAmps;
 
-#ifdef DO_MEASUREMENTS    
+#ifdef DO_MEASUREMENTS
   electrical_measurements.motors[0].dcAmpsAvgAcc += ABS(adc_buffer.dcl - offsetdcl);
   electrical_measurements.motors[1].dcAmpsAvgAcc += ABS(adc_buffer.dcl - offsetdcl);
 
@@ -281,7 +285,7 @@ void DMA1_Channel1_IRQHandler() {
 
   blockPhaseCurrent(posl, adc_buffer.rl1 - offsetrl1, adc_buffer.rl2 - offsetrl2, &curl);
 
-#ifdef DO_MEASUREMENTS    
+#ifdef DO_MEASUREMENTS
   electrical_measurements.motors[0].r1 = adc_buffer.rl1 - offsetrl1;
   electrical_measurements.motors[0].r2 = adc_buffer.rl2 - offsetrl2;
   electrical_measurements.motors[0].q  = curl;
@@ -303,8 +307,10 @@ void DMA1_Channel1_IRQHandler() {
 
   //update PWM channels based on position
   if (0){
+  #ifdef HALL_INTERRUPTS
     blockPWMSin(pwml, posl, fraction[0], &ul, &vl, &wl);
     blockPWMSin(pwmr, posr, fraction[1], &ur, &vr, &wr);
+  #endif
   } else {
     blockPWM(pwml, posl, &ul, &vl, &wl);
     blockPWM(pwmr, posr, &ur, &vr, &wr);

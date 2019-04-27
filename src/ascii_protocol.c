@@ -19,14 +19,23 @@
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
-#include "sensorcoms.h"
+#ifdef CONTROL_SENSOR
+    #include "sensorcoms.h"
+#endif
 #include "protocol.h"
-#include "hallinterrupts.h"
-#include "softwareserial.h"
-#include "bldc.h"
-
-#include "flashcontent.h"
-#include "flashaccess.h"
+#ifdef HALL_INTERRUPTS
+    #include "hallinterrupts.h"
+#endif
+#ifdef SOFTWARE_SERIAL
+    #include "softwareserial.h"
+#endif
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
+    #include "bldc.h"
+#endif
+#ifdef FLASH_STORAGE
+    #include "flashcontent.h"
+    #include "flashaccess.h"
+#endif
 #include "comms.h"
 
 #include <string.h>
@@ -41,7 +50,7 @@ extern SPEED_DATA SpeedData;
 //////////////////////////////////////////////////////////
 
 
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL1) || (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 //////////////////////////////////////////////////////////
 //
@@ -62,8 +71,10 @@ extern int sensor_control;
 extern int sensor_stabilise;
 #endif
 
+#ifdef FLASH_STORAGE
 // from main.c
 extern void change_PID_constants();
+#endif
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
@@ -179,12 +190,16 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             timeout = 0;
 
             switch (control_type){
+#ifdef FLASH_STORAGE
                 case CONTROL_TYPE_POSITION:
+    #ifdef HALL_INTERRUPTS
                     PosnData.wanted_posn_mm[0] += dir * 100;
                     PosnData.wanted_posn_mm[1] += dir * 100;
                     sprintf(ascii_out, "wanted_posn now %ldmm %ldmm\r\n", PosnData.wanted_posn_mm[0], PosnData.wanted_posn_mm[1]);
+    #endif
                     break;
                 case CONTROL_TYPE_SPEED:
+#endif
                 case CONTROL_TYPE_PWM:
                     speedB += 10*dir;
                     PwmSteerCmd.base_pwm += 10*dir;
@@ -205,12 +220,16 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             enable = 1;
             timeout = 0;
             switch (control_type){
+#ifdef FLASH_STORAGE
                 case CONTROL_TYPE_POSITION:
+    #ifdef HALL_INTERRUPTS
                     PosnData.wanted_posn_mm[0] += dir * 100;
                     PosnData.wanted_posn_mm[1] -= dir * 100;
                     sprintf(ascii_out, "wanted_posn now %ldmm %ldmm\r\n", PosnData.wanted_posn_mm[0], PosnData.wanted_posn_mm[1]);
+    #endif
                     break;
                 case CONTROL_TYPE_SPEED:
+#endif
                 case CONTROL_TYPE_PWM:
                     steerB += 10*dir;
                     PwmSteerCmd.steer += 10*dir;
@@ -229,11 +248,15 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             PwmSteerCmd.base_pwm = 0;
             PwmSteerCmd.steer = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
+#ifdef HALL_INTERRUPTS
             HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
+#endif
             dspeeds[0] = dspeeds[1] = speedB;
             pwms[0] = pwms[1] = speedB;
+#ifdef HALL_INTERRUPTS
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#endif
 #ifdef CONTROL_SENSOR
             sensor_control = 0;
 #endif
@@ -250,11 +273,15 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             PwmSteerCmd.base_pwm = 0;
             PwmSteerCmd.steer = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
+#ifdef HALL_INTERRUPTS
             HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
+#endif
             dspeeds[0] = dspeeds[1] = speedB;
             pwms[0] = pwms[1] = speedB;
+#ifdef HALL_INTERRUPTS
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#endif
 #ifdef CONTROL_SENSOR
             sensor_control = 0;
 #endif
@@ -302,6 +329,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
 #endif
             break;
 
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
         case 'C':
         case 'c':
             processed = 1;
@@ -315,6 +343,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
                 (int)(electrical_measurements.motors[1].dcAmps*1000.0), (int)(electrical_measurements.motors[1].dcAmpsAvg*1000.0), electrical_measurements.motors[1].r1, electrical_measurements.motors[1].r2
             );
             break;
+#endif
 
         case 'G':
         case 'g':
@@ -395,10 +424,14 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 "   W/S/A/D/X -Faster/Slower/Lefter/Righter/DisableDrive\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 
+#ifdef HALL_INTERRUPTS
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+#endif
+
             snprintf(ascii_out, sizeof(ascii_out)-1,
+
 #ifdef CONTROL_SENSOR
                 "   N/O/R - read seNsor data/toggle pOsitional control/dangeR\r\n");
 #else
@@ -459,8 +492,10 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             steerB = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
             dspeeds[0] = dspeeds[1] = speedB;
+    #ifdef HALL_INTERRUPTS
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+    #endif
             sprintf(ascii_out, "Sensor control now %d\r\n", sensor_control);
             break;
 #endif
@@ -486,6 +521,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             }
             sprintf(ascii_out, "debug_out now %d\r\nenablescope now %d\r\n", debug_out, enablescope);
             break;
+#ifdef FLASH_STORAGE
         case 'F':
         case 'f': // setting any parameter marked with uistr
             if (len == 1){
@@ -565,6 +601,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 }
             }
             break; // end generic read of flash or other variable
+#endif
         case 'G':
         case 'g':
             ascii_process_immediate(s, 'g');
@@ -587,13 +624,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             PwmSteerCmd.steer = 0;
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
             dspeeds[0] = dspeeds[1] = speedB;
+#ifdef HALL_INTERRUPTS
             PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
             PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#endif
             if (len == 1){
                 enable_immediate = 1;
                 sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ\r\n>");
             } else {
                 switch (cmd[1] | 0x20){
+#ifdef FLASH_STORAGE
                     case 's':
                         enable_immediate = 1;
                         control_type = CONTROL_TYPE_SPEED;
@@ -604,6 +644,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                         control_type = CONTROL_TYPE_POSITION;
                         sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Position control\r\n>");
                         break;
+#endif
                     case 'w':
                         enable_immediate = 1;
                         control_type = CONTROL_TYPE_PWM;

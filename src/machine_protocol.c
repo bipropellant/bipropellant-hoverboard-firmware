@@ -27,14 +27,23 @@
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
-#include "sensorcoms.h"
+#ifdef CONTROL_SENSOR
+    #include "sensorcoms.h"
+#endif
 #include "protocol.h"
-#include "hallinterrupts.h"
-#include "softwareserial.h"
-#include "bldc.h"
-
-#include "flashcontent.h"
-#include "flashaccess.h"
+#ifdef HALL_INTERRUPTS
+    #include "hallinterrupts.h"
+#endif
+#ifdef SOFTWARE_SERIAL
+    #include "softwareserial.h"
+#endif
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
+    #include "bldc.h"
+#endif
+#ifdef FLASH_STORAGE
+    #include "flashcontent.h"
+    #include "flashaccess.h"
+#endif
 #include "comms.h"
 
 #include <string.h>
@@ -103,7 +112,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
             } else {
                 if (s->allow_ascii){
                     //////////////////////////////////////////////////////
-                    // if the byte was NOT SOM (02), then treat it as an 
+                    // if the byte was NOT SOM (02), then treat it as an
                     // ascii protocol byte.  BOTH protocol can co-exist
                     ascii_byte(s, byte );
                     //////////////////////////////////////////////////////
@@ -330,7 +339,7 @@ void protocol_tick(PROTOCOL_STAT *s){
             break;
         case PROTOCOL_STATE_BADCHAR:
             // 'normally, characters received BETWEEN messages which are not SOM should be treated as ASCII commands.'
-            // 'implement a mode where non SOM characters between messages cause (TIMEOUT2) to be started, 
+            // 'implement a mode where non SOM characters between messages cause (TIMEOUT2) to be started,
             // resulting in a _NACK with CI of last received message + 1_.'
             if ((s->last_tick_time - s->last_char_time) > s->timeout2){
                 protocol_send_nack(s->send_serial_data, s->curr_msg.CI+1);
@@ -340,8 +349,8 @@ void protocol_tick(PROTOCOL_STAT *s){
             break;
         default:
             // in a message
-            // 'In receive, if in a message (SOM has been received) and the time since the last character 
-            // exceeds (TIMEOUT2), the incomming message should be discarded, 
+            // 'In receive, if in a message (SOM has been received) and the time since the last character
+            // exceeds (TIMEOUT2), the incomming message should be discarded,
             // and a NACK should be sent with the CI of the message in progress or zero if no CI received yet'
             if ((s->last_tick_time - s->last_char_time) > s->timeout2){
                 protocol_send_nack(s->send_serial_data, s->curr_msg.CI);
