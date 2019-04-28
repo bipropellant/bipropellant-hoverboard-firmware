@@ -1,3 +1,3 @@
 [submodule "lib/hbprotocol"]
 	path = src/hbprotocol
-	url = git@github.com:p-h-a-i-l/hbprotocol.git
+	url = https://github.com/bipropellant/hbprotocol.git
