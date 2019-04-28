@@ -6,6 +6,8 @@ This firmware is a heavily modified version of [Niklas Fauth's hoverboard firmwa
 
 This project was started by [btsimonh](https://github.com/btsimonh)
 
+It branched from Niklas Fauth's hoverboard firmware at this commit: [Aug 24, 2018](https://github.com/bipropellant/hoverboard-firmware/commit/28287b9acc53b68ff4dede0de61852188838da51)
+
 # Added:
 
 ### Software serial:
