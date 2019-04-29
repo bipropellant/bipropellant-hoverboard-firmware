@@ -227,7 +227,7 @@ void change_PID_constants(){
   }
 }
 
-#ifdef FLASH_CONTENT
+#ifdef FLASH_STORAGE
 void init_flash_content(){
   FLASH_CONTENT FlashRead;
   int len = readFlash( (unsigned char *)&FlashRead, sizeof(FlashRead) );
@@ -302,12 +302,15 @@ int main(void) {
   USART3_IT_init();
   #endif
 
-#ifdef FLASH_CONTENT
+#ifdef FLASH_STORAGE
   init_flash_content();
 
   init_PID_control();
 #endif
 
+  if (0 == FlashContent.MaxCurrLim) {
+    FlashContent.MaxCurrLim = DC_CUR_LIMIT*100;
+  }
   electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
 
   for (int i = 8; i >= 0; i--) {
@@ -627,9 +630,10 @@ int main(void) {
                 }
               }
               break;
+              
             case CONTROL_TYPE_PWM:
               for (int i = 0; i < 2; i++){
-                pwms[i] = SpeedData.wanted_speed_mm_per_sec[i];
+                pwms[i] = PWMData.pwm[i];
               }
               break;
           }

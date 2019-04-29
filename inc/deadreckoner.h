@@ -31,8 +31,8 @@ typedef struct DeadReckoner_tag {
 
 // create an instance
 DEADRECKONER *DeadReckoner(
-    volatile unsigned long *pLeftTicks, 
-    volatile unsigned long *pRightTicks, 
+    volatile long *pLeftTicks, 
+    volatile long *pRightTicks, 
     double ticksPerRev, 
     double wheelDiameter, 
     double wheelBase,

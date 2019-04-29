@@ -21,7 +21,7 @@ static void computeAngularVelocities(DEADRECKONER *);
 static unsigned long getChange(unsigned long, unsigned long);
 
 
-DEADRECKONER *DeadReckoner(volatile unsigned long *pLeftTicks, volatile unsigned long *pRightTicks, double ticksPerRev, double wheelDiameter, double wheelBase, int useDegrees) {
+DEADRECKONER *DeadReckoner(volatile long *pLeftTicks, volatile long *pRightTicks, double ticksPerRev, double wheelDiameter, double wheelBase, int useDegrees) {
     // get zeroed structure
     DEADRECKONER *d = calloc(1, sizeof(DEADRECKONER));
 
