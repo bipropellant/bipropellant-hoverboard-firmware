@@ -630,9 +630,10 @@ int main(void) {
                 }
               }
               break;
+              
             case CONTROL_TYPE_PWM:
               for (int i = 0; i < 2; i++){
-                pwms[i] = SpeedData.wanted_speed_mm_per_sec[i];
+                pwms[i] = PWMData.pwm[i];
               }
               break;
           }
