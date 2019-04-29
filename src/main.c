@@ -302,7 +302,7 @@ int main(void) {
   USART3_IT_init();
   #endif
 
-#ifdef FLASH_CONTENT
+#ifdef FLASH_STORAGE
   init_flash_content();
 
   init_PID_control();
