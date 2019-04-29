@@ -227,7 +227,7 @@ void change_PID_constants(){
   }
 }
 
-#ifdef FLASH_CONTENT
+#ifdef FLASH_STORAGE
 void init_flash_content(){
   FLASH_CONTENT FlashRead;
   int len = readFlash( (unsigned char *)&FlashRead, sizeof(FlashRead) );
@@ -308,6 +308,9 @@ int main(void) {
   init_PID_control();
 #endif
 
+  if (0 == FlashContent.MaxCurrLim) {
+    FlashContent.MaxCurrLim = DC_CUR_LIMIT*100;
+  }
   electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
 
   for (int i = 8; i >= 0; i--) {
