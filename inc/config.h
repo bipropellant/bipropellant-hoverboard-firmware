@@ -28,6 +28,7 @@
   #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
   #define SOFTWARE_SERIAL_TX_PORT GPIOC
   //#define DEBUG_SERIAL_ASCII
+  #define DEBUG_SOFTWARE_SERIAL
   #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
 #endif
 
@@ -177,7 +178,6 @@
 
 // ############################### SOFTWARE SERIAL ###############################
 //
-//#define DEBUG_SOFTWARE_SERIAL
 // there should now be a free choice of serial GPIO pins
 #define SOFTWARE_SERIAL_BAUD 9600
 

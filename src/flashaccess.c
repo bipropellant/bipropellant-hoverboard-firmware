@@ -34,6 +34,10 @@ unsigned short writeFlash16( volatile unsigned short *data, uint16_t len ){
 // everything AFTER will still be 0xFFFFFFFF
 int writeFlash( unsigned char *data, int len ){
     char tmp[80];
+
+    sprintf(tmp, "\r\nflash root %lx", (unsigned long)flash_data); 
+    consoleLog(tmp);
+
     unsigned short *p = (unsigned short *)flash_data;
     int i = (flashlen/2) - 1;
     for (; i > 0; i--){
@@ -132,6 +136,9 @@ int readFlash( unsigned char *data, int len ){
         unsigned char *start = (unsigned char *)&p[i];
         start -= ((flen+1)/2)*2; // get to aligned start of data
         if ((uint32_t)start < (uint32_t)flash_data){
+            char tmp[80];
+            sprintf(tmp, "\r\nflashread - len %d seems wrong?", i); 
+            consoleLog(tmp);
             return -1;
         } 
 
@@ -141,6 +148,9 @@ int readFlash( unsigned char *data, int len ){
         memcpy(data, start, flen);
         return flen;
     }
+    char tmp[80];
+    sprintf(tmp, "\r\nflashread - no end found?"); 
+    consoleLog(tmp);
     return -1;
 }
 
