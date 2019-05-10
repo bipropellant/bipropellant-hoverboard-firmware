@@ -1,5 +1,6 @@
 #pragma once
 #include "stm32f1xx_hal.h"
+#ifndef IGNORE_GLOBAL_CONFIG
 
 //////////////////////////////////////////////////////////
 // macro types for the hoverboard control style
@@ -223,6 +224,7 @@
 // #define SPEED_COEFFICIENT   0.5
 // #define STEER_COEFFICIENT   -0.2
 
+#endif
 
 #if (INCLUDE_PROTOCOL == NO_PROTOCOL)
   #undef INCLUDE_PROTOCOL
