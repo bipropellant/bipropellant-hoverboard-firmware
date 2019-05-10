@@ -19,7 +19,7 @@
 #include "stm32f1xx_hal.h"
 #include "defines.h"
 #include "config.h"
-#include <memory.h>
+#include <string.h>
 
 #ifdef SOFTWARE_SERIAL
 #include "softwareserial.h"
@@ -42,13 +42,13 @@ volatile unsigned int ssbits = 0;
 #define SOFTWARE_SERIAL_BUFFER_SIZE 1024
 typedef struct tag_SOFTWARE_SERIAL_BUFFER {
     volatile unsigned char buff[SOFTWARE_SERIAL_BUFFER_SIZE];
-    volatile int head; 
-    volatile int tail; 
+    volatile int head;
+    volatile int tail;
     volatile int bit;
 
     volatile unsigned long lasttime;
     volatile char lastvalue;
-    
+
     // count of buffer overflows
     volatile unsigned int overflow;
 
@@ -68,7 +68,7 @@ void SoftwareSerialInit(void){
 
   softwareserialRXbuffer.bit = -1; // awaiting start bit
   softwareserialTXbuffer.bit = -1; // awaiting start bit
-  
+
   // setup our GPIO pin for rising and falling interrupts
   GPIO_InitTypeDef GPIO_InitStruct;
   GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
@@ -79,7 +79,7 @@ void SoftwareSerialInit(void){
   GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING_FALLING;
   HAL_GPIO_Init(SOFTWARE_SERIAL_RX_PORT, &GPIO_InitStruct);
 
-  
+
   // setup TIM2:
   __HAL_RCC_TIM2_CLK_ENABLE();
   softwareserialtimer.Instance = TIM2;
@@ -183,7 +183,7 @@ void softwareserial_flushTX(){
 // put a single character if room in output buffer
 void softwareserial_puttx(unsigned char value){
     int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
-    if (count < 0) 
+    if (count < 0)
         count += SOFTWARE_SERIAL_BUFFER_SIZE;
 
     if (count >= SOFTWARE_SERIAL_BUFFER_SIZE-2){
@@ -199,7 +199,7 @@ void softwareserial_puttx(unsigned char value){
 // return length, or 0 if it won't fit
 int softwareserial_Send(unsigned char *data, int len){
     int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
-    if (count < 0) 
+    if (count < 0)
         count += SOFTWARE_SERIAL_BUFFER_SIZE;
 
     if (count + len >= SOFTWARE_SERIAL_BUFFER_SIZE-2){
@@ -222,7 +222,7 @@ int softwareserial_Send_Wait(unsigned char *data, int len){
     int orglen = len;
     while (len){
         int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
-        if (count < 0) 
+        if (count < 0)
             count += SOFTWARE_SERIAL_BUFFER_SIZE;
 
         int avail = (SOFTWARE_SERIAL_BUFFER_SIZE-3) - count;

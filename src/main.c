@@ -36,7 +36,7 @@
 
 #include "deadreckoner.h"
 
-#include <memory.h>
+#include <string.h>
 
 void SystemClock_Config(void);
 
@@ -630,7 +630,7 @@ int main(void) {
                 }
               }
               break;
-              
+
             case CONTROL_TYPE_PWM:
               for (int i = 0; i < 2; i++){
                 pwms[i] = PWMData.pwm[i];

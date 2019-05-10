@@ -38,7 +38,7 @@ pb10 usart3 dma1 channel2/3
 #include "defines.h"
 #include "config.h"
 #include "comms.h"
-#include "memory.h"
+#include <string.h>
 
 TIM_HandleTypeDef htim_right;
 TIM_HandleTypeDef htim_left;

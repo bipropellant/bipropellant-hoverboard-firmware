@@ -2,7 +2,6 @@
 #include "deadreckoner.h"
 #include <math.h>
 #include <stdlib.h>
-#include <memory.h>
 #include "stm32f1xx_hal.h"
 
 

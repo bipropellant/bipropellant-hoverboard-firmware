@@ -3,7 +3,7 @@
 #include "config.h"
 #include "comms.h"
 #include "flashaccess.h"
-#include <memory.h>
+#include <string.h>
 
 #ifdef FLASH_STORAGE
 
@@ -35,7 +35,7 @@ unsigned short writeFlash16( volatile unsigned short *data, uint16_t len ){
 int writeFlash( unsigned char *data, int len ){
     char tmp[80];
 
-    sprintf(tmp, "\r\nflash root %lx", (unsigned long)flash_data); 
+    sprintf(tmp, "\r\nflash root %lx", (unsigned long)flash_data);
     consoleLog(tmp);
 
     unsigned short *p = (unsigned short *)flash_data;
@@ -50,7 +50,7 @@ int writeFlash( unsigned char *data, int len ){
         i++;
     }
 
-    sprintf(tmp, "\r\npe %d", i); 
+    sprintf(tmp, "\r\npe %d", i);
     consoleLog(tmp);
 
     HAL_FLASH_Unlock();
@@ -69,13 +69,13 @@ int writeFlash( unsigned char *data, int len ){
         HAL_StatusTypeDef res = HAL_FLASHEx_Erase(&eraseinfo, &PageError);
 
         if (res != HAL_OK){
-            sprintf(tmp, "\r\nerase fail %d", (int)res); 
+            sprintf(tmp, "\r\nerase fail %d", (int)res);
             consoleLog(tmp);
             HAL_FLASH_Lock();
             return -1;
         }
 
-        sprintf(tmp, "\r\n\r\n\r\n\r\n ****** ERASED FLASH at %lx (%ld pages)", eraseinfo.PageAddress, eraseinfo.NbPages); 
+        sprintf(tmp, "\r\n\r\n\r\n\r\n ****** ERASED FLASH at %lx (%ld pages)", eraseinfo.PageAddress, eraseinfo.NbPages);
         consoleLog(tmp);
 
     }
@@ -87,7 +87,7 @@ int writeFlash( unsigned char *data, int len ){
         HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (uint32_t)dest, (uint32_t)*src);
 
         if (res != HAL_OK){
-            sprintf(tmp, "\r\nwrite fail %d", (int)res); 
+            sprintf(tmp, "\r\nwrite fail %d", (int)res);
             consoleLog(tmp);
             HAL_FLASH_Lock();
             return -1;
@@ -100,13 +100,13 @@ int writeFlash( unsigned char *data, int len ){
     // now finish with the len
     HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (unsigned long)dest, len);
     if (res != HAL_OK){
-        sprintf(tmp, "\r\nwrite fail %d", (int)res); 
+        sprintf(tmp, "\r\nwrite fail %d", (int)res);
         consoleLog(tmp);
         HAL_FLASH_Lock();
         return -1;
     }
 
-    sprintf(tmp, "\r\nwrote flash at %lx len %d", (unsigned long)start, len); 
+    sprintf(tmp, "\r\nwrote flash at %lx len %d", (unsigned long)start, len);
     consoleLog(tmp);
     HAL_FLASH_Lock();
 
@@ -137,10 +137,10 @@ int readFlash( unsigned char *data, int len ){
         start -= ((flen+1)/2)*2; // get to aligned start of data
         if ((uint32_t)start < (uint32_t)flash_data){
             char tmp[80];
-            sprintf(tmp, "\r\nflashread - len %d seems wrong?", i); 
+            sprintf(tmp, "\r\nflashread - len %d seems wrong?", i);
             consoleLog(tmp);
             return -1;
-        } 
+        }
 
         if (flen > len){
             flen = len;
@@ -149,7 +149,7 @@ int readFlash( unsigned char *data, int len ){
         return flen;
     }
     char tmp[80];
-    sprintf(tmp, "\r\nflashread - no end found?"); 
+    sprintf(tmp, "\r\nflashread - no end found?");
     consoleLog(tmp);
     return -1;
 }
@@ -178,7 +178,7 @@ int flashposn(int *len){
 ///////////////////////////////////////////////////
 // generic flash routines for firmware upgrade use
 // we have 256K, so pages 0-127, all 2k (0x800) long
-// note: this won't write across pages.  
+// note: this won't write across pages.
 // design expected len value 128 or 256.
 // UNTESTED
 int writeflashchunk( void *addr, unsigned char *data, int len ){
@@ -201,7 +201,7 @@ int writeflashchunk( void *addr, unsigned char *data, int len ){
         HAL_StatusTypeDef res = HAL_FLASHEx_Erase(&eraseinfo, &PageError);
 
         if (res != HAL_OK){
-            sprintf(tmp, "\r\nerase fail %d", (int)res); 
+            sprintf(tmp, "\r\nerase fail %d", (int)res);
             consoleLog(tmp);
             HAL_FLASH_Lock();
             return -1;
@@ -216,7 +216,7 @@ int writeflashchunk( void *addr, unsigned char *data, int len ){
         HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (uint32_t)dest, (uint32_t)*src);
 
         if (res != HAL_OK){
-            sprintf(tmp, "\r\nwrite fail %d", (int)res); 
+            sprintf(tmp, "\r\nwrite fail %d", (int)res);
             consoleLog(tmp);
             HAL_FLASH_Lock();
             return -1;
