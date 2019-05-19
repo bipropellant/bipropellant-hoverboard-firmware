@@ -50,7 +50,7 @@ RESERVED_FLASH (rw) : ORIGIN = 0x8000000 + 256K - _Reserved_Space, LENGTH = _Res
 SECTIONS
 {
   /* The startup code goes first into FLASH */
-  .isr_vecmbjhtor :
+  .isr_vector :
   {
     . = ALIGN(4);
     KEEP(*(.isr_vector)) /* Startup code */
