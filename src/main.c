@@ -301,6 +301,9 @@ int main(void) {
   #ifdef SERIAL_USART3_IT
   USART3_IT_init();
   #endif
+  #ifdef SOFTWARE_SERIAL
+  SoftwareSerialInit();
+  #endif
 
 #ifdef FLASH_STORAGE
   init_flash_content();
@@ -334,10 +337,6 @@ int main(void) {
   #ifdef HALL_INTERRUPTS
     // enables interrupt reading of hall sensors for dead reconing wheel position.
     HallInterruptinit();
-  #endif
-
-  #ifdef SOFTWARE_SERIAL
-    SoftwareSerialInit();
   #endif
 
   #ifdef CONTROL_PPM
