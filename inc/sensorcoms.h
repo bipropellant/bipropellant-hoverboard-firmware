@@ -38,12 +38,12 @@ void sensor_set_colour(int side, int colour);
 void sensor_send_lights();
 
 // the IRQ.
-extern void USART_sensor_IRQ(int port, USART_TypeDef *us);
+void USART_sensor_IRQ(int port, USART_TypeDef *us);
 
 
-#pragma pack(push, 1)
 
 // bytes send from sensor board
+#pragma pack(push, 1)
 typedef struct tag_sensor_data{
   short Angle;
   short Angle_duplicate;
@@ -61,9 +61,12 @@ typedef struct tag_sensor_data{
   unsigned int foottime_ms; // last time we transitions this foot.
   int doubletap; // indicates user tapped foot sensor twice in 2s
 } SENSOR_DATA;
+#pragma pack(pop)
+
 
 // bytes send to sensor.
 // must be sent twice to take effect if other serial is on the same line
+#pragma pack(push, 1)
 typedef struct tag_sensor_lights {
   unsigned char unknown;
   unsigned char flashcount; // non zero-> red flash number of times with pause
@@ -72,10 +75,9 @@ typedef struct tag_sensor_lights {
   unsigned char unknown3;
   unsigned char colour; // this byte gets bit 8 set (on 9 bit serial);
 } SENSOR_LIGHTS;
-
 #pragma pack(pop)
 
-extern SENSOR_DATA sensor_data[2];
+SENSOR_DATA sensor_data[2];
 
 
 // bit masks for colour
