@@ -352,6 +352,57 @@ int main(void) {
   #ifdef CONTROL_SERIAL_USART2
     UART_Control_Init();
     HAL_UART_Receive_DMA(&huart2, (uint8_t *)&command, 4);
+  #endif
+
+  #ifdef INCLUDE_PROTOCOL
+
+    #ifdef SOFTWARE_SERIAL
+
+      PROTOCOL_STAT sSoftwareSerial;
+
+      if(protocol_init(&sSoftwareSerial) != 0) consoleLog("Protocol Init failed\r\n");
+
+      sSoftwareSerial.send_serial_data=softwareserial_Send;
+      sSoftwareSerial.send_serial_data_wait=softwareserial_Send_Wait;
+      sSoftwareSerial.timeout1 = 500;
+      sSoftwareSerial.timeout2 = 100;
+      sSoftwareSerial.allow_ascii = 1;
+
+    #endif
+
+    #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+
+      extern int USART2_IT_send(unsigned char *data, int len);
+
+      PROTOCOL_STAT sUSART2;
+
+      if(protocol_init(&sUSART2) != 0) consoleLog("Protocol Init failed\r\n");
+
+      sUSART2.send_serial_data=USART2_IT_send;
+      sUSART2.send_serial_data_wait=USART2_IT_send;
+      sUSART2.timeout1 = 500;
+      sUSART2.timeout2 = 100;
+      sUSART2.allow_ascii = 1;
+
+    #endif
+
+    #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+
+      extern int USART3_IT_send(unsigned char *data, int len);
+
+      PROTOCOL_STAT sUSART3;
+
+      if(protocol_init(&sUSART3) != 0) consoleLog("Protocol Init failed\r\n");
+
+      sUSART3.send_serial_data=USART3_IT_send;
+      sUSART3.send_serial_data_wait=USART3_IT_send;
+      sUSART3.timeout1 = 500;
+      sUSART3.timeout2 = 100;
+      sUSART3.allow_ascii = 1;
+
+    #endif
+
+    int last_control_type = CONTROL_TYPE_NONE;
 
   #endif
 
@@ -387,10 +438,6 @@ int main(void) {
 
   unsigned int startup_counter = 0;
 
-  //#ifdef INCLUDE_PROTOCOL // Required in protocol 2?
-  int last_control_type = CONTROL_TYPE_NONE;
-  //#endif
-
 
   while(1) {
     startup_counter++;
@@ -410,18 +457,22 @@ int main(void) {
             SERIAL_USART_IT_BUFFERTYPE inputc = serial_getrx();
             #ifdef SOFTWARE_SERIAL
               protocol_byte( &sSoftwareSerial, (unsigned char) inputc );
-            #elif defined SERIAL_USART2_IT
+            #endif
+            #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
               protocol_byte( &sUSART2, (unsigned char) inputc );
-            #elif defined SERIAL_USART3_IT
+            #endif
+            #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
               protocol_byte( &sUSART3, (unsigned char) inputc );
             #endif
         }
         // very (too?) regular tick to protocol.
         #ifdef SOFTWARE_SERIAL
           protocol_tick( &sSoftwareSerial );
-        #elif defined SERIAL_USART2_IT
+        #endif
+        #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
           protocol_tick( &sUSART2 );
-        #elif defined SERIAL_USART3_IT
+        #endif
+        #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
           protocol_tick( &sUSART3 );
         #endif
       }
