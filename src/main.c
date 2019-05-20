@@ -107,24 +107,6 @@ int milli_vel_error_sum = 0;
 DEADRECKONER *deadreconer;
 INTEGER_XYT_POSN xytPosn;
 
-///////////////////////////////////////////////////////////////
-// define where to get serial data for protocol.c
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
-  #ifdef SOFTWARE_SERIAL
-    int (*serial_available)() = softwareserial_available;
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();}
-  #elif defined(SERIAL_USART2_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART2_IT
-    int serial_available() { return serial_usart_buffer_count(&usart2_it_RXbuffer); }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart2_it_RXbuffer);}
-  #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART3_IT
-    int serial_available() { return serial_usart_buffer_count(&usart3_it_RXbuffer); }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart3_it_RXbuffer);}
-  #else
-    int serial_available() { return 0; }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0; }
-  #endif
-#endif
-
 
 void poweroff() {
     if (ABS(speed) < 20) {
@@ -449,35 +431,42 @@ int main(void) {
     xytPosn.y = (int)y;
     xytPosn.degrees = (int)t;
 
+
+
     #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+
       unsigned long start = HAL_GetTick();
+
       while (HAL_GetTick() < start + DELAY_IN_MAIN_LOOP){
-        // note: serial_available & serial_getrx defined above depending upon serial
-        while ( serial_available() > 0 ) {
-            SERIAL_USART_IT_BUFFERTYPE inputc = serial_getrx();
-            #ifdef SOFTWARE_SERIAL
-              protocol_byte( &sSoftwareSerial, (unsigned char) inputc );
-            #endif
-            #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
-              protocol_byte( &sUSART2, (unsigned char) inputc );
-            #endif
-            #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
-              protocol_byte( &sUSART3, (unsigned char) inputc );
-            #endif
-        }
-        // very (too?) regular tick to protocol.
+
+
         #ifdef SOFTWARE_SERIAL
+          while ( softwareserial_available() > 0 ) {
+            protocol_byte( &sSoftwareSerial, (unsigned char) softwareserial_getrx() );
+          }
           protocol_tick( &sSoftwareSerial );
         #endif
+
         #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+          while ( serial_usart_buffer_count(&usart2_it_RXbuffer) > 0 ) {
+            protocol_byte( &sUSART2, (unsigned char) serial_usart_buffer_pop(&usart2_it_RXbuffer) );
+          }
           protocol_tick( &sUSART2 );
         #endif
+
         #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+          while ( serial_usart_buffer_count(&usart3_it_RXbuffer) > 0 ) {
+            protocol_byte( &sUSART3, (unsigned char) serial_usart_buffer_pop(&usart3_it_RXbuffer) );
+          }
           protocol_tick( &sUSART3 );
         #endif
+
       }
+
     #else // if no bytes to read, just do a delay
+
       HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
+
     #endif
 
     cmd1 = 0;
