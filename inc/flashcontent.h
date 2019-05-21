@@ -47,13 +47,13 @@ typedef struct tag_FLASH_CONTENT{
     unsigned short MaxCurrLim;
 
     unsigned short HoverboardEnable; // non zero to enable
-    
+
 } FLASH_CONTENT;
 #pragma pack(pop)
 
-extern FLASH_CONTENT FlashContent;
+FLASH_CONTENT FlashContent;
 
-extern const FLASH_CONTENT FlashDefaults;
+const FLASH_CONTENT FlashDefaults;
 
 #ifndef FLASH_DEFAULT_HOVERBOARD_ENABLE
 #define FLASH_DEFAULT_HOVERBOARD_ENABLE 0
