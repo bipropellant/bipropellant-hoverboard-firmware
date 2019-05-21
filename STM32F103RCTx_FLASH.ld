@@ -115,7 +115,7 @@ SECTIONS
   .myFlashSection :
   {
      . = ALIGN(2048);
-     KEEP (*(.myFlashSection))
+     *(.myFlashSection)
      . = ALIGN(2048);
   } >RESERVED_FLASH
 

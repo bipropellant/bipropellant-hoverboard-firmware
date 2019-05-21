@@ -2,7 +2,7 @@
 #include "defines.h"
 #include "config.h"
 
-#ifdef FLASH_STORAGE
+#ifdef FLASH_STORAGE_INIT
 // this should reserve a single 2k flash block at 0x0800C000
 // page = 30
 
