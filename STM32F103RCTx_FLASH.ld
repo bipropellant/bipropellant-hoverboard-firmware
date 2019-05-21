@@ -37,12 +37,13 @@ _estack = 0x2000C000;    /* end of RAM */
 /* Generate a link error if heap and stack don't fit into RAM */
 _Min_Heap_Size = 0x200;      /* required amount of heap  */
 _Min_Stack_Size = 0x400; /* required amount of stack */
-
+_Reserved_Space = 0x800;
 /* Specify the memory areas */
 MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 48K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 256K
+FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 256K - _Reserved_Space
+RESERVED_FLASH (rw) : ORIGIN = 0x8000000 + 256K - _Reserved_Space, LENGTH = _Reserved_Space
 }
 
 /* Define output sections */
@@ -82,15 +83,6 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  /* create a section in flash which is aligned on a page boundary, don't really care where. */
-  .myFlashSection :
-  {
-     . = ALIGN(2048);
-     *(.myFlashSection)
-     *(.myFlashSection*)
-     . = ALIGN(2048);
-  } >FLASH
-
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
   .ARM : {
     __exidx_start = .;
@@ -118,6 +110,15 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH
+  
+  /* create a section in flash which is aligned on a page boundary, don't really care where. */
+  .myFlashSection :
+  {
+     . = ALIGN(2048);
+     *(.myFlashSection)
+     . = ALIGN(2048);
+  } >RESERVED_FLASH
+
 
   /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);
@@ -174,5 +175,4 @@ SECTIONS
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
 }
-
 

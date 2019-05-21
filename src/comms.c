@@ -102,7 +102,7 @@ void consoleLog(char *message)
         USART2_IT_send((unsigned char *)message, strlen(message));
       #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
         USART3_IT_send((unsigned char *)message, strlen(message));
-      #else
+      #elif !defined(READ_SENSOR)
         HAL_UART_Transmit_DMA(&huart2, (uint8_t *)message, strlen(message));
       #endif
     #endif

@@ -15,7 +15,7 @@
 //extern volatile const uint8_t flash_data[];
 
 // last two pages of the first half
-volatile uint8_t *flash_data = (uint8_t *) 0x08000000 + 62*2048;
+volatile uint8_t *flash_data = (uint8_t *) 0x08000000 + 0x40000 - 0x800;
 int flashlen = 4096; // two pages
 
 // routines to read and write config data
