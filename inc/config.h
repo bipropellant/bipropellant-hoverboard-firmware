@@ -128,8 +128,8 @@
   #define SERIAL_USART3_IT
   #define USART2_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
   #define USART3_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
-//#define USART2_BAUD     26300    // reported baudrate for other sensor boards?
-//#define USART3_BAUD     26300    // reported baudrate for other sensor boards?
+//#define USART2_BAUD     26315    // reported baudrate for other sensor boards?
+//#define USART3_BAUD     26315    // reported baudrate for other sensor boards?
   #define SERIAL_USART_IT_BUFFERTYPE  unsigned short
 //#define SERIAL_USART_IT_BUFFERTYPE  unsigned char // 8 bit with non original sensor boards ?
   #define USART2_WORDLENGTH UART_WORDLENGTH_9B
