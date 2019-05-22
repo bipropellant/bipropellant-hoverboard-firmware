@@ -28,9 +28,11 @@
 // to write to it, use protocol to write to magic, this will commit content to flash
 
 // decimal to make it easier to type!
+#pragma once
+
 #define CURRENT_MAGIC 1234
 
-#pragma pack(push, 2)
+#pragma pack(push, 2) // all variables of type unsigned short (2 bytes)
 typedef struct tag_FLASH_CONTENT{
     unsigned short magic;  // write this with CURRENT_MAGIC to commit to flash
 
@@ -51,9 +53,9 @@ typedef struct tag_FLASH_CONTENT{
 } FLASH_CONTENT;
 #pragma pack(pop)
 
-FLASH_CONTENT FlashContent;
+extern FLASH_CONTENT FlashContent;
 
-const FLASH_CONTENT FlashDefaults;
+extern const FLASH_CONTENT FlashDefaults;
 
 #ifndef FLASH_DEFAULT_HOVERBOARD_ENABLE
 #define FLASH_DEFAULT_HOVERBOARD_ENABLE 0

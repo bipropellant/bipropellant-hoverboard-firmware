@@ -51,5 +51,5 @@ http://vocke.tv/lib/exe/fetch.php?media=20150722_hoverboard_sch.pdf
 [Take a look at our wiki](https://github.com/bipropellant/hoverboard-firmware/wiki/Building-and-flashing)
 
 
-# You have any other problem?
-First [take a look at our wiki](https://github.com/bipropellant/hoverboard-firmware/wiki) and [openned issues](https://github.com/bipropellant/hoverboard-firmware/issues), if still have any problem/question, feel free to [open a new issue](https://github.com/bipropellant/hoverboard-firmware/issues/new)!
+# Any other problems?
+First [take a look at our wiki](https://github.com/bipropellant/hoverboard-firmware/wiki) and [open issues](https://github.com/bipropellant/hoverboard-firmware/issues), if you still have any problem/question, feel free to [open a new issue](https://github.com/bipropellant/hoverboard-firmware/issues/new)!

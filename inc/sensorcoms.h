@@ -77,7 +77,7 @@ typedef struct tag_sensor_lights {
 } SENSOR_LIGHTS;
 #pragma pack(pop)
 
-SENSOR_DATA sensor_data[2];
+extern SENSOR_DATA sensor_data[2];
 
 
 // bit masks for colour
