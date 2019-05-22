@@ -20,9 +20,6 @@
 SENSOR_DATA sensor_data[2];
 SENSOR_LIGHTS sensorlights[2];
 
-SENSOR_LIGHTS last_sensorlights[2];
-
-
 ///////////////////////////
 // sends data on sensor port.
 // set startframe=1 to add 0x100 before data.
@@ -37,7 +34,7 @@ int USART_sensorSend(int port, unsigned char *data, int len, int endframe){
 
     for (int i = 0; i < len; i++){
         unsigned short c = data[i];
-        if(endframe && (i == len-1)){
+        if(endframe && (i == 0)){
             c |= 0x100;
         }
         USART_sensor_addTXshort( port, (unsigned short) c );
@@ -47,14 +44,12 @@ int USART_sensorSend(int port, unsigned char *data, int len, int endframe){
     return 1;
 }
 
-
 int USART_sensor_rxcount(int port){
     if (port == 0){
         return  serial_usart_buffer_count(&usart2_it_RXbuffer);
     }
     return  serial_usart_buffer_count(&usart3_it_RXbuffer);
 }
-
 
 int USART_sensor_txcount(int port){
     if (port == 0){
@@ -65,9 +60,9 @@ int USART_sensor_txcount(int port){
 
 void USART_sensor_addTXshort(int port, SERIAL_USART_IT_BUFFERTYPE value) {
     if (port == 0){
-        serial_usart_buffer_push(&usart2_it_TXbuffer, value);
-    }
-    serial_usart_buffer_push(&usart3_it_TXbuffer, value);
+        return serial_usart_buffer_push(&usart2_it_TXbuffer, value);
+    }  
+    return serial_usart_buffer_push(&usart3_it_TXbuffer, value);
 }
 
 SERIAL_USART_IT_BUFFERTYPE USART_sensor_getrx(int port) {
@@ -91,47 +86,33 @@ int USART_sensor_starttx(int port){
     return USART3_IT_starttx();
 }
 
-
-short rx2[2][20];
-int rx2posn[2];
-
 void sensor_read_data(){
     // read the last sensor message in the buffer
     unsigned int time_ms = HAL_GetTick();
 
-    int counts[2];
-    unsigned char rx[2][20];
     for (int side = 0; side < 2; side++){
-        counts[side] = USART_sensor_rxcount(side);
-        int toflush = counts[side] - 20;
         // flush data up to last 20 bytes
-        for (int i = 0; i < toflush; i++){
-            USART_sensor_getrx(side);
-            counts[side]--;
-        }
-
         short c = 0;
-        int i = 0;
-        if (counts[side] >= 20){
-            // read bytes until 0x100 is found with at least 10 bytes read
-            do {
-                c = USART_sensor_getrx(side);
-                if (c < 0) break;
-                rx2[side][i] = c;
-                rx[side][i++] = c & 0xff;
-            } while ((!(c & 0x100) || (i < 10)) && (i < 20));
-            rx2posn[side] = i;
+        for (int i = USART_sensor_rxcount(side); i > 10 ; i--){
+            c = USART_sensor_getrx(side);
+            if (i < 20  && c == 0x100)
+              break;
         }
-
 
         // if we got the end of a frame, copy into data
-        if ((c & 0x100) && (i >= 10)){
+        if (c == 0x100) {
             unsigned char orgsw = sensor_data[side].AA_55;
-            memcpy(&sensor_data[side], &rx[side][i-10], 10);
+            sensor_data[side].Angle = USART_sensor_getrx(side) & 0xFF;
+            sensor_data[side].Angle += (USART_sensor_getrx(side) & 0xFF) << 8;
+            sensor_data[side].Angle_duplicate = USART_sensor_getrx(side) & 0xFF;
+            sensor_data[side].Angle_duplicate += (USART_sensor_getrx(side) & 0xFF) << 8;
+            sensor_data[side].AA_55 = USART_sensor_getrx(side) & 0xFF;
+
             sensor_data[side].read_timeout = 10;
             
             // if we just stepped on
             if ((sensor_data[side].AA_55 == 0x55) && (orgsw == 0xAA)){
+                consoleLog("\r\nStepped On");
                 sensor_data[side].Center = sensor_data[side].Angle;
                 sensor_data[side].sensor_ok = 10;
                 if (sensor_data[side].foottime_ms){
@@ -148,8 +129,12 @@ void sensor_read_data(){
                 if (sensor_data[side].sensor_ok > 0){
                     sensor_data[side].sensor_ok--;
                 }
-            }
+            } 
         } else {
+            
+            if (sensor_data[side].read_timeout==10)
+                consoleLog("\r\nSensor SOF not found");
+                
             if (sensor_data[side].read_timeout > 0){
                 sensor_data[side].read_timeout--;
             }
@@ -159,7 +144,6 @@ void sensor_read_data(){
         }
     }
 }
-
 
 int sensor_get_speeds(int16_t *speedL, int16_t *speedR){
 	if (sensor_data[0].read_timeout && sensor_data[1].read_timeout){
@@ -184,7 +168,6 @@ int sensor_get_speeds(int16_t *speedL, int16_t *speedR){
     return 0;
 }
 
-
 void sensor_set_flash(int side, int count){
     sensorlights[side].flashcount = count;
 }
@@ -192,18 +175,9 @@ void sensor_set_colour(int side, int colour){
     sensorlights[side].colour = colour;
 }
 
-
 void sensor_send_lights(){
-    if (memcmp(last_sensorlights, sensorlights, sizeof(sensorlights))){
-        // send twice to make sure each side gets it.
-        // if we sent diagnositc data, it seems to need this.
-        USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
         USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
         USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
-        USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
-        memcpy(last_sensorlights, sensorlights, sizeof(sensorlights));
-    }
 }
-
 
 #endif
