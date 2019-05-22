@@ -16,8 +16,7 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef SOFTWARESERIAL_H
-#define SOFTWARESERIAL_H
+#pragma once
 
 #include "config.h"
 
@@ -30,7 +29,7 @@ void SoftwareSerialInit(void);
 
 //////////////////////////////////////////////////////////
 // get a character, -1 if none.
-short softwareserial_getrx(); 
+short softwareserial_getrx();
 
 // get a character, -1 if none.  But don't move buffer
 short softwareserial_peekrx();
@@ -64,6 +63,3 @@ int softwareserial_Send_Wait(unsigned char *data, int len);
 void softwareserialRXInterrupt(void);
 
 #endif //SOFTWARE_SERIAL
-
-
-#endif //SOFTWARESERIAL_H

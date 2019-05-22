@@ -1,10 +1,8 @@
-#ifndef BLDC_H
-#define BLDC_H
-
+#pragma once
 
 
 // structure to hold all the things we read.
-#pragma pack(push, 1)
+#pragma pack(push, 4) // all used types (float and int) are 4 bytes
 typedef struct tag_ELECTRICAL_PARAMS{
     int bat_raw;
     float batteryVoltage;
@@ -29,5 +27,4 @@ typedef struct tag_ELECTRICAL_PARAMS{
 } ELECTRICAL_PARAMS;
 #pragma pack(pop)
 
-volatile ELECTRICAL_PARAMS electrical_measurements;
-#endif
+extern volatile ELECTRICAL_PARAMS electrical_measurements;

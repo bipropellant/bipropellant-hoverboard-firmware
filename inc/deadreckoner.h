@@ -1,13 +1,13 @@
-#ifndef _DeadReckoner_h
-#define _DeadReckoner_h
+#pragma once
 
 
-
+#pragma pack(push, 4)  // since on 'long' are used, alignment can be optimized for 4 bytes
 typedef struct INTEGER_XYT_POSN_tag {
     long x;
     long y;
     long degrees;
 } INTEGER_XYT_POSN;
+#pragma pack(pop)
 
 typedef struct DeadReckoner_tag {
 	volatile long *leftTicks, *rightTicks; // Number of total wheel encoder tick counts for left and right wheels.
@@ -31,10 +31,10 @@ typedef struct DeadReckoner_tag {
 
 // create an instance
 DEADRECKONER *DeadReckoner(
-    volatile long *pLeftTicks, 
-    volatile long *pRightTicks, 
-    double ticksPerRev, 
-    double wheelDiameter, 
+    volatile long *pLeftTicks,
+    volatile long *pRightTicks,
+    double ticksPerRev,
+    double wheelDiameter,
     double wheelBase,
     int useDegrees);
 // delete an instance
@@ -58,5 +58,3 @@ void getW(DEADRECKONER *d, double *w);
 // we don't use these, since hall ticks go up and down
 void setLROmegaDirection(DEADRECKONER *d, int directionL, int directionR);
 void getLROmegaDirection(DEADRECKONER *d, int *directionL, int *directionR);
-
-#endif
