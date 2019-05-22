@@ -544,10 +544,10 @@ int main(void) {
             scale[i] = 3;
           }
 
-          if  (ABS(sensor_data[i].Roll) > 2000){
+          if  (ABS(sensor_data[i].complete.Roll) > 2000){
             rollhigh = 1;
           }
-          if  (ABS(sensor_data[i].Angle) > 9000){
+          if  (ABS(sensor_data[i].complete.Angle) > 9000){
             rollhigh = 1;
           }
         }
@@ -562,13 +562,13 @@ int main(void) {
           } else {
             if ((sensor_data[0].sensor_ok || sensor_data[1].sensor_ok) && !electrical_measurements.charging){
               if (!OnBoard){
-                Center[0] = sensor_data[0].Angle;
-                Center[1] = sensor_data[1].Angle;
+                Center[0] = sensor_data[0].complete.Angle;
+                Center[1] = sensor_data[1].complete.Angle;
                 OnBoard = 1;
               }
 
               for (int i = 0; i < 2; i++){
-                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].Angle - Center[i])/3+dspeeds[i], -Clamp[i], Clamp[i]);
+                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].complete.Angle - Center[i])/3+dspeeds[i], -Clamp[i], Clamp[i]);
                 if (sensor_data[i].sensor_ok){
                   sensor_set_colour(i, SENSOR_COLOUR_YELLOW);
                 } else {
@@ -581,7 +581,7 @@ int main(void) {
             } else {
               OnBoard = 0;
               for (int i = 0; i < 2; i++){
-                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].Angle)/scale[i]+dspeeds[i], -80, 80);
+                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].complete.Angle)/scale[i]+dspeeds[i], -80, 80);
               }
               timeout = 0;
               enable = 1;
@@ -737,8 +737,8 @@ int main(void) {
       #endif
 
       #ifdef CONTROL_SENSOR
-        setScopeChannel(0, (int)sensor_data[0].Angle);  // 1: ADC1
-        setScopeChannel(1, -(int)sensor_data[1].Angle);  // 2: ADC2
+        setScopeChannel(0, (int)sensor_data[0].complete.Angle);  // 1: ADC1
+        setScopeChannel(1, -(int)sensor_data[1].complete.Angle);  // 2: ADC2
       #endif
 
       setScopeChannel(2, (int)pwms[1]);  // 3: output speed: 0-1000
@@ -767,8 +767,8 @@ int main(void) {
         if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
 #ifdef EXAMPLE_FLASH_ONLY
           #if defined CONTROL_SENSOR && defined FLASH_STORAGE
-            calibrationdata[0] = sensor_data[0].Angle;
-            calibrationdata[1] = sensor_data[1].Angle;
+            calibrationdata[0] = sensor_data[0].complete.Angle;
+            calibrationdata[1] = sensor_data[1].complete.Angle;
             calibrationread = 1;
 
             char tmp[40];
