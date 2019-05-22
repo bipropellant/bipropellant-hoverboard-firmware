@@ -107,24 +107,6 @@ int milli_vel_error_sum = 0;
 DEADRECKONER *deadreconer;
 INTEGER_XYT_POSN xytPosn;
 
-///////////////////////////////////////////////////////////////
-// define where to get serial data for protocol.c
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
-  #ifdef SOFTWARE_SERIAL
-    int (*serial_available)() = softwareserial_available;
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return softwareserial_getrx();}
-  #elif defined(SERIAL_USART2_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART2_IT
-    int serial_available() { return serial_usart_buffer_count(&usart2_it_RXbuffer); }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart2_it_RXbuffer);}
-  #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR) // READ_SENSOR uses SERIAL_USART3_IT
-    int serial_available() { return serial_usart_buffer_count(&usart3_it_RXbuffer); }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return serial_usart_buffer_pop(&usart3_it_RXbuffer);}
-  #else
-    int serial_available() { return 0; }
-    SERIAL_USART_IT_BUFFERTYPE serial_getrx() { return 0; }
-  #endif
-#endif
-
 
 void poweroff() {
     if (ABS(speed) < 20) {
@@ -351,6 +333,57 @@ int main(void) {
   #ifdef CONTROL_SERIAL_USART2
     UART_Control_Init();
     HAL_UART_Receive_DMA(&huart2, (uint8_t *)&command, 4);
+  #endif
+
+  #ifdef INCLUDE_PROTOCOL
+
+    #ifdef SOFTWARE_SERIAL
+
+      PROTOCOL_STAT sSoftwareSerial;
+
+      if(protocol_init(&sSoftwareSerial) != 0) consoleLog("Protocol Init failed\r\n");
+
+      sSoftwareSerial.send_serial_data=softwareserial_Send;
+      sSoftwareSerial.send_serial_data_wait=softwareserial_Send_Wait;
+      sSoftwareSerial.timeout1 = 500;
+      sSoftwareSerial.timeout2 = 100;
+      sSoftwareSerial.allow_ascii = 1;
+
+    #endif
+
+    #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+
+      extern int USART2_IT_send(unsigned char *data, int len);
+
+      PROTOCOL_STAT sUSART2;
+
+      if(protocol_init(&sUSART2) != 0) consoleLog("Protocol Init failed\r\n");
+
+      sUSART2.send_serial_data=USART2_IT_send;
+      sUSART2.send_serial_data_wait=USART2_IT_send;
+      sUSART2.timeout1 = 500;
+      sUSART2.timeout2 = 100;
+      sUSART2.allow_ascii = 1;
+
+    #endif
+
+    #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+
+      extern int USART3_IT_send(unsigned char *data, int len);
+
+      PROTOCOL_STAT sUSART3;
+
+      if(protocol_init(&sUSART3) != 0) consoleLog("Protocol Init failed\r\n");
+
+      sUSART3.send_serial_data=USART3_IT_send;
+      sUSART3.send_serial_data_wait=USART3_IT_send;
+      sUSART3.timeout1 = 500;
+      sUSART3.timeout2 = 100;
+      sUSART3.allow_ascii = 1;
+
+    #endif
+
+    int last_control_type = CONTROL_TYPE_NONE;
 
   #endif
 
@@ -386,10 +419,6 @@ int main(void) {
 
   unsigned int startup_counter = 0;
 
-  //#ifdef INCLUDE_PROTOCOL // Required in protocol 2?
-  int last_control_type = CONTROL_TYPE_NONE;
-  //#endif
-
 
   while(1) {
     startup_counter++;
@@ -401,31 +430,42 @@ int main(void) {
     xytPosn.y = (int)y;
     xytPosn.degrees = (int)t;
 
+
+
     #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+
       unsigned long start = HAL_GetTick();
+
       while (HAL_GetTick() < start + DELAY_IN_MAIN_LOOP){
-        // note: serial_available & serial_getrx defined above depending upon serial
-        while ( serial_available() > 0 ) {
-            SERIAL_USART_IT_BUFFERTYPE inputc = serial_getrx();
-            #ifdef SOFTWARE_SERIAL
-              protocol_byte( &sSoftwareSerial, (unsigned char) inputc );
-            #elif defined SERIAL_USART2_IT
-              protocol_byte( &sUSART2, (unsigned char) inputc );
-            #elif defined SERIAL_USART3_IT
-              protocol_byte( &sUSART3, (unsigned char) inputc );
-            #endif
-        }
-        // very (too?) regular tick to protocol.
+
+
         #ifdef SOFTWARE_SERIAL
+          while ( softwareserial_available() > 0 ) {
+            protocol_byte( &sSoftwareSerial, (unsigned char) softwareserial_getrx() );
+          }
           protocol_tick( &sSoftwareSerial );
-        #elif defined SERIAL_USART2_IT
+        #endif
+
+        #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+          while ( serial_usart_buffer_count(&usart2_it_RXbuffer) > 0 ) {
+            protocol_byte( &sUSART2, (unsigned char) serial_usart_buffer_pop(&usart2_it_RXbuffer) );
+          }
           protocol_tick( &sUSART2 );
-        #elif defined SERIAL_USART3_IT
+        #endif
+
+        #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+          while ( serial_usart_buffer_count(&usart3_it_RXbuffer) > 0 ) {
+            protocol_byte( &sUSART3, (unsigned char) serial_usart_buffer_pop(&usart3_it_RXbuffer) );
+          }
           protocol_tick( &sUSART3 );
         #endif
+
       }
+
     #else // if no bytes to read, just do a delay
+
       HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
+
     #endif
 
     cmd1 = 0;

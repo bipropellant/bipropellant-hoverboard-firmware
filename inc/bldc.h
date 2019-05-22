@@ -4,6 +4,7 @@
 
 
 // structure to hold all the things we read.
+#pragma pack(push, 1)
 typedef struct tag_ELECTRICAL_PARAMS{
     int bat_raw;
     float batteryVoltage;
@@ -26,6 +27,7 @@ typedef struct tag_ELECTRICAL_PARAMS{
     } motors[2];
 
 } ELECTRICAL_PARAMS;
+#pragma pack(pop)
 
-extern volatile ELECTRICAL_PARAMS electrical_measurements;
+volatile ELECTRICAL_PARAMS electrical_measurements;
 #endif

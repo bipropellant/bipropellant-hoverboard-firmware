@@ -39,6 +39,7 @@
 //////////////////////////////////////////////////////////////
 // this is the Hall data we gather, and can be read elsewhere
 // one for each wheel
+#pragma pack(push, 1)
 typedef struct tag_HALL_DATA_STRUCT{
     long HallPosn; // 90 per revolution
     long HallSpeed; // speed part calibrated to speed demand value
@@ -53,7 +54,9 @@ typedef struct tag_HALL_DATA_STRUCT{
     unsigned long HallTimeDiff;
     unsigned long HallSkipped;
 } HALL_DATA_STRUCT;
-extern volatile HALL_DATA_STRUCT HallData[2];
+#pragma pack(pop)
+
+volatile HALL_DATA_STRUCT HallData[2];
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -72,8 +75,9 @@ void HallInterruptsInterrupt(void);
 
 ////////////////////////////////////////////////////////////////////////////
 // it may be useful to read the current position and zero it at the same time
-// this function provides this as an option, as well as getting a single 
+// this function provides this as an option, as well as getting a single
 // snapshot with interrupts disabled
+#pragma pack(push, 1)
 typedef struct tag_HALL_POSN {
     struct {
         int HallPosn; // 90 per revolution
@@ -83,10 +87,11 @@ typedef struct tag_HALL_POSN {
         unsigned long HallSkipped;
     } wheel[2];
 } HALL_POSN;
+#pragma pack(pop)
 
 void HallInterruptReadPosn( HALL_POSN *p, int Reset );
 
-
+#pragma pack(push, 1)
 typedef struct tag_HALL_PARAMS{
     uint8_t hall_u;
     uint8_t hall_v;
@@ -110,11 +115,12 @@ typedef struct tag_HALL_PARAMS{
 
     int dmacount;
 } HALL_PARAMS;
+#pragma pack(pop)
 
-extern volatile HALL_DATA_STRUCT HallData[2];
-extern TIM_HandleTypeDef h_timer_hall;
-extern volatile HALL_PARAMS local_hall_params[2];
-extern volatile long long timerwraps;
+volatile HALL_DATA_STRUCT HallData[2];
+TIM_HandleTypeDef h_timer_hall;
+volatile HALL_PARAMS local_hall_params[2];
+volatile long long timerwraps;
 
 
 #endif
