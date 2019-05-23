@@ -159,30 +159,25 @@ void sensor_read_data(){
         if (process) {
             s->read_timeout = 10;
             // if we just stepped on
-            if ((s->complete.AA_55 == 0x55) && (orgsw == 0xAA)){
-                consoleLog("Stepped On\r\n");
-                s->Center = s->complete.Angle;
+            if (s->complete.AA_55 == 0x55) {
                 s->sensor_ok = 10;
-                if (s->foottime_ms){
-                    int diff = time_ms - s->foottime_ms;
-                    if ((diff < 2000) && (diff > 250)){
-                        s->doubletap = 1;
-                    } else {
-                        s->doubletap = 0;
+                if (orgsw == 0xAA) {
+                    consoleLog("Stepped On\r\n");
+                    s->Center = s->complete.Angle;
+                    if (s->foottime_ms){
+                        int diff = time_ms - s->foottime_ms;
+                        if ((diff < 2000) && (diff > 250)){
+                            s->doubletap = 1;
+                        } else {
+                            s->doubletap = 0;
+                        }
                     }
+                    s->foottime_ms = time_ms;
                 }
-                s->foottime_ms = time_ms;
             }
             if (s->complete.AA_55 == 0xAA){
                 if (orgsw == 0x55)
                     consoleLog("Stepped Off\r\n");
-
-                if (s->sensor_ok > 0){
-                    s->sensor_ok--;
-                    if (s->sensor_ok == 0){
-                        consoleLog("SensorOK -> 0 in process\r\n");
-                    }
-                }
             }
 
         } else {
@@ -191,6 +186,7 @@ void sensor_read_data(){
                 
             if (s->read_timeout > 0){
                 s->read_timeout--;
+            } else {
                 consoleLog("Sensor RX timeout\r\n");
             }
             if (s->sensor_ok > 0){
