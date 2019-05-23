@@ -536,14 +536,6 @@ int main(void) {
 
         int rollhigh = 0;
         for (int i = 0; i < 2; i++){
-          if  (sensor_data[i].sensor_ok){
-            sensor_set_colour(i, SENSOR_COLOUR_GREEN);
-            scale[i] = 3;
-          } else {
-            sensor_set_colour(i, SENSOR_COLOUR_RED);
-            scale[i] = 3;
-          }
-
           if  (ABS(sensor_data[i].complete.Roll) > 2000){
             rollhigh = 1;
           }
@@ -556,6 +548,7 @@ int main(void) {
         // if roll is a large angle (>20 degrees)
         // then disable
     #ifdef CONTROL_SENSOR
+        int setcolours = 1;
         if (sensor_control && FlashContent.HoverboardEnable){
           if (rollhigh){
             enable = 0;
@@ -575,6 +568,8 @@ int main(void) {
                   sensor_set_colour(i, SENSOR_COLOUR_GREEN);
                 }
               }
+              // don't set default cilours below
+              setcolours = 0;
               timeout = 0;
               enable = 1;
               inactivity_timeout_counter = 0;
@@ -585,6 +580,20 @@ int main(void) {
               }
               timeout = 0;
               enable = 1;
+            }
+          }
+        }
+
+        // if not set above, set default colours now
+        // changed so that  it did not cycle btween green/yellow
+        if(setcolours) {
+          for (int i = 0; i < 2; i++){
+            if  (sensor_data[i].sensor_ok){
+              sensor_set_colour(i, SENSOR_COLOUR_GREEN);
+              scale[i] = 3;
+            } else {
+              sensor_set_colour(i, SENSOR_COLOUR_RED);
+              scale[i] = 3;
             }
           }
         }

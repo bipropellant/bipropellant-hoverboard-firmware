@@ -95,10 +95,15 @@ void sensor_copy_buffer(SENSOR_DATA *s){
     if (count > sizeof(s->complete)) {
         count = sizeof(s->complete);
     }
-    if (count != sizeof(s->complete)){
-        memset(&s->complete, 0, sizeof(s->complete));
+
+    if ((s->buffer[5] != 0xAA) && (s->buffer[5] != 0x55)){
+        consoleLog("sensor data not 55 or AA\r\n");
+    } else {
+        if (count != sizeof(s->complete)){
+            memset(&s->complete, 0, sizeof(s->complete));
+        }
+        memcpy(&s->complete, s->buffer, count);
     }
-    memcpy(&s->complete, s->buffer, count);
     s->framecopied = 1;
 }
 
@@ -123,7 +128,8 @@ void sensor_read_data(){
             if (c & 0x100) {
                 if ((s->bytecount >= MIN_SENSOR_WORDS) && !s->framecopied){
                     sensor_copy_buffer(s);
-                    process++;
+                    if (s->framecopied)
+                        process++;
                 }
                 // note how many words were in a frame
                 s->last_sensor_words = s->bytecount;
@@ -140,10 +146,11 @@ void sensor_read_data(){
             // do an early read if we know how many words
             // we want - set in config.h
             // else it will wait for 0x1xx
-            if (s->bytecount >= SENSOR_WORDS) {
+            if ((s->bytecount >= SENSOR_WORDS) && (!s->framecopied)) {
                 sensor_copy_buffer(s);
                 // stop extra bytes coming in
-                process++;
+                if (s->framecopied)
+                    process++;
             }
             remaining--;
         } while (remaining);
@@ -151,10 +158,9 @@ void sensor_read_data(){
         // we may have read more than one message here (process>1)
         if (process) {
             s->read_timeout = 10;
-
             // if we just stepped on
             if ((s->complete.AA_55 == 0x55) && (orgsw == 0xAA)){
-                consoleLog("\r\nStepped On");
+                consoleLog("Stepped On\r\n");
                 s->Center = s->complete.Angle;
                 s->sensor_ok = 10;
                 if (s->foottime_ms){
@@ -168,20 +174,30 @@ void sensor_read_data(){
                 s->foottime_ms = time_ms;
             }
             if (s->complete.AA_55 == 0xAA){
+                if (orgsw == 0x55)
+                    consoleLog("Stepped Off\r\n");
+
                 if (s->sensor_ok > 0){
                     s->sensor_ok--;
+                    if (s->sensor_ok == 0){
+                        consoleLog("SensorOK -> 0 in process\r\n");
+                    }
                 }
-            } 
+            }
+
         } else {
             //if (sensor_data[side].read_timeout==10)
             //    consoleLog("\r\nSensor SOF not found");
                 
             if (s->read_timeout > 0){
                 s->read_timeout--;
-                consoleLog("\r\nSensor RX timeout");
+                consoleLog("Sensor RX timeout\r\n");
             }
             if (s->sensor_ok > 0){
                 s->sensor_ok--;
+                if (s->sensor_ok == 0){
+                    consoleLog("SensorOK -> 0 in unprocessed poll\r\n");
+                }
             }
         }
     }
@@ -214,7 +230,14 @@ int sensor_get_speeds(int16_t *speedL, int16_t *speedR){
 void sensor_set_flash(int side, int count){
     sensorlights[side].flashcount = count;
 }
+
+int diag_count = 0;
 void sensor_set_colour(int side, int colour){
+    if (sensorlights[side].colour != colour) {
+        char tmp[40];
+        sprintf(tmp, "colour %d %x -> %x (%d)\r\n", side, sensorlights[side].colour, colour, diag_count++);
+        consoleLog(tmp);
+    }
     sensorlights[side].colour = colour;
 }
 
