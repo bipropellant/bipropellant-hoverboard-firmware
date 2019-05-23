@@ -419,26 +419,22 @@ int main(void) {
 
   unsigned int startup_counter = 0;
 
-
+  timeStats.now_us = HallGetuS();
+  timeStats.nominal_delay_us = (DELAY_IN_MAIN_LOOP * 1000);
+  timeStats.start_processing_us = timeStats.now_us + timeStats.nominal_delay_us;
+  
   while(1) {
-    startup_counter++;
-    computePosition(deadreconer);
-    double x,y,t;
-    getXYT(deadreconer, &x, &y, &t);
+    timeStats.time_in_us = timeStats.now_us;
 
-    xytPosn.x = (int)x;
-    xytPosn.y = (int)y;
-    xytPosn.degrees = (int)t;
+    if (timeStats.start_processing_us < timeStats.now_us) {
+      timeStats.us_lost += timeStats.now_us - timeStats.start_processing_us;
+      timeStats.main_late_count++;
+      timeStats.start_processing_us = timeStats.now_us + 1000;  // at least 1ms of delay
+    }
 
-
-
-    #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
-
-      unsigned long start = HAL_GetTick();
-
-      while (HAL_GetTick() < start + DELAY_IN_MAIN_LOOP){
-
-
+    // delay until we should start processing
+    while (timeStats.now_us < timeStats.start_processing_us){
+      #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
         #ifdef SOFTWARE_SERIAL
           while ( softwareserial_available() > 0 ) {
             protocol_byte( &sSoftwareSerial, (unsigned char) softwareserial_getrx() );
@@ -459,14 +455,23 @@ int main(void) {
           }
           protocol_tick( &sUSART3 );
         #endif
+      #endif
+      timeStats.now_us = HallGetuS();
+    }
 
-      }
+    // move out '5ms' trigger on by 5ms
+    timeStats.processing_in_us = timeStats.now_us;
 
-    #else // if no bytes to read, just do a delay
+    /////////////////////////////////////
+    // proceesing starts after we hit 5ms interval
+    startup_counter++;
+    computePosition(deadreconer);
+    double x,y,t;
+    getXYT(deadreconer, &x, &y, &t);
 
-      HAL_Delay(DELAY_IN_MAIN_LOOP); //delay in ms
-
-    #endif
+    xytPosn.x = (int)x;
+    xytPosn.y = (int)y;
+    xytPosn.degrees = (int)t;
 
     cmd1 = 0;
     cmd2 = 0;
@@ -889,6 +894,28 @@ int main(void) {
         poweroff();
       }
     }
+
+    ////////////////////////////////
+    // take stats
+    timeStats.now_us = HallGetuS();
+    
+    timeStats.main_interval_us = timeStats.now_us - timeStats.time_in_us;
+    timeStats.main_delay_us = timeStats.processing_in_us - timeStats.time_in_us;
+    timeStats.main_processing_us = timeStats.now_us - timeStats.processing_in_us;
+    // maybe average main_dur as a stat?
+    if (timeStats.main_interval_ms == 0){
+      timeStats.main_interval_ms = ((float)timeStats.main_interval_us)/1000;
+      timeStats.main_processing_ms = ((float)timeStats.main_processing_us)/1000.0;
+    }
+    timeStats.main_interval_ms = timeStats.main_interval_ms * 0.99;
+    timeStats.main_interval_ms = timeStats.main_interval_ms + (((float)timeStats.main_interval_us)/1000.0)*0.01;
+
+    timeStats.main_processing_ms = timeStats.main_processing_ms * 0.99;
+    timeStats.main_processing_ms = timeStats.main_processing_ms + (((float)timeStats.main_processing_us)/1000.0)*0.01;
+
+    // select next loop start point
+    // move out '5ms' trigger on by 5ms
+    timeStats.start_processing_us = timeStats.start_processing_us + timeStats.nominal_delay_us;
   }
 }
 
