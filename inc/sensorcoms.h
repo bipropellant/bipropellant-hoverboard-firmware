@@ -53,9 +53,13 @@ typedef struct tag_sensor_frame{
   short Roll;
 } SENSOR_FRAME;
 
+#define MAX_SENSOR_WORDS 20
+#define MIN_SENSOR_WORDS 6
+
 typedef struct tag_sensor_data{
-  SENSOR_FRAME buffer;
+  unsigned char buffer[MAX_SENSOR_WORDS];
   int bytecount;
+  int framecopied;
   SENSOR_FRAME complete;
 
   // not included in message:
@@ -65,6 +69,10 @@ typedef struct tag_sensor_data{
 
   unsigned int foottime_ms; // last time we transitions this foot.
   int doubletap; // indicates user tapped foot sensor twice in 2s
+
+  // the number of words n the last message
+  int last_sensor_words;
+
 } SENSOR_DATA;
 #pragma pack(pop)
 

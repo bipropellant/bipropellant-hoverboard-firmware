@@ -89,6 +89,20 @@ int USART_sensor_starttx(int port){
     return USART3_IT_starttx();
 }
 
+// copy what data we have onto our sensor data structure
+void sensor_copy_buffer(SENSOR_DATA *s){
+    int count = s->bytecount;
+    if (count > sizeof(s->complete)) {
+        count = sizeof(s->complete);
+    }
+    if (count != sizeof(s->complete)){
+        memset(&s->complete, 0, sizeof(s->complete));
+    }
+    memcpy(&s->complete, s->buffer, count);
+    s->framecopied = 1;
+}
+
+
 void sensor_read_data(){
     // read the last sensor message in the buffer
     unsigned int time_ms = HAL_GetTick();
@@ -102,23 +116,33 @@ void sensor_read_data(){
         SENSOR_DATA *s = &sensor_data[side];
         unsigned char orgsw = s->complete.AA_55;
         int remaining = USART_sensor_rxcount(side);
-        unsigned char *dest = (unsigned char *) &s->buffer;
+        unsigned char *dest = s->buffer;
         do {
-            short c = 0;
+            short c;
             c = USART_sensor_getrx(side);
             if (c & 0x100) {
+                if ((s->bytecount >= MIN_SENSOR_WORDS) && !s->framecopied){
+                    sensor_copy_buffer(s);
+                    process++;
+                }
+                // note how many words were in a frame
+                s->last_sensor_words = s->bytecount;
                 s->bytecount = 0;
+                memset(s->buffer, 0, sizeof(s->buffer));
+                s->framecopied = 0;
             }
 
-            if (s->bytecount >= 0) {
+            if ((s->bytecount >= 0) && (s->bytecount < MAX_SENSOR_WORDS)) {
                 dest[s->bytecount] = (c & 0xff);
                 s->bytecount ++;
             }
 
-            if (s->bytecount >= sizeof(SENSOR_FRAME)) {
-                s->complete = s->buffer;
+            // do an early read if we know how many words
+            // we want - set in config.h
+            // else it will wait for 0x1xx
+            if (s->bytecount >= SENSOR_WORDS) {
+                sensor_copy_buffer(s);
                 // stop extra bytes coming in
-                s->bytecount = -1;
                 process++;
             }
             remaining--;
@@ -195,8 +219,12 @@ void sensor_set_colour(int side, int colour){
 }
 
 void sensor_send_lights(){
-        USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
-        USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
+    // send twice - we don;t send very often, and sensor board seems
+    // to need a complete frame betwen 0x1xx words to trigger
+    USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
+    USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
+    USART_sensorSend(0, (unsigned char *)&sensorlights[0], 6, 1);
+    USART_sensorSend(1, (unsigned char *)&sensorlights[1], 6, 1);
 }
 
 #endif

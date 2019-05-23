@@ -1,6 +1,10 @@
 #pragma once
 #include "stm32f1xx_hal.h"
+
+// **************** NOTE!!!! ******
+// if using platformio env, then this is set, and config.h is ignored!!!!!
 #ifndef IGNORE_GLOBAL_CONFIG
+// **************** NOTE!!!! ******
 
 //////////////////////////////////////////////////////////
 // macro types for the hoverboard control style
@@ -9,6 +13,7 @@
 #define USART2_CONTROLLED 2
 #define USART3_CONTROLLED 3
 #define SOFTWARE_SERIAL_A2_A3 4
+#define HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9_6WORDSENSOR 5
 
 // thoery says this is the only thing you need to change....
 #define CONTROL_TYPE HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9
@@ -31,7 +36,36 @@
   //#define DEBUG_SERIAL_ASCII
   #define DEBUG_SOFTWARE_SERIAL
   #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
+  #define SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud (10 word)
+  #define SENSOR_WORDS 10
+//#define SENSOR_BAUD     26315    // reported baudrate for other sensor boards (6 word)?
+//#define SENSOR_WORDS 6
+//#define SENSOR_BAUD     32100    // reported baudrate for another sensor board (maybe 7 word)?
+  // possibly baud rate based on ~2.5ms frame interval, so baud dependent on word count?
 #endif
+
+#if (CONTROL_TYPE == HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9_6WORDSENSOR)
+  // this control type allows the board to be used AS a hoverboard,
+  // responding to sensor movements when in hoverboard mode.
+  /// and uses softwareserial for serial control on B2/C9
+  #define READ_SENSOR
+  #define CONTROL_SENSOR
+  #define SOFTWARE_SERIAL
+  #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2
+  #define SOFTWARE_SERIAL_RX_PORT GPIOB
+  #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
+  #define SOFTWARE_SERIAL_TX_PORT GPIOC
+  //#define DEBUG_SERIAL_ASCII
+  #define DEBUG_SOFTWARE_SERIAL
+  #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
+//#define SENSOR_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud (10 word)
+//#define SENSOR_WORDS 10
+  #define SENSOR_BAUD     26315    // reported baudrate for other sensor boards (6 word)?
+  #define SENSOR_WORDS 6
+//#define SENSOR_BAUD     32100    // reported baudrate for another sensor board (maybe 7 word)?
+  // possibly baud rate based on ~2.5ms frame interval, so baud dependent on word count?
+#endif
+
 
 #if (CONTROL_TYPE == SOFTWARE_SERIAL_A2_A3)
   // hoverboard sensor functionality is disabled
@@ -126,16 +160,11 @@
 #if defined(READ_SENSOR)
   #define SERIAL_USART2_IT
   #define SERIAL_USART3_IT
-  #define USART2_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
-  #define USART3_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud
-//#define USART2_BAUD     26315    // reported baudrate for other sensor boards?
-//#define USART3_BAUD     26315    // reported baudrate for other sensor boards?
+  #define USART2_BAUD     SENSOR_BAUD
+  #define USART3_BAUD     SENSOR_BAUD
   #define SERIAL_USART_IT_BUFFERTYPE  unsigned short
-//#define SERIAL_USART_IT_BUFFERTYPE  unsigned char // 8 bit with non original sensor boards ?
   #define USART2_WORDLENGTH UART_WORDLENGTH_9B
   #define USART3_WORDLENGTH UART_WORDLENGTH_9B
-//#define USART2_WORDLENGTH UART_WORDLENGTH_8B      // 8 bit with non original sensor boards ?
-//#define USART3_WORDLENGTH UART_WORDLENGTH_8B      // 8 bit with non original sensor boards ?
 
 #else
 //  #define SERIAL_USART2_IT
@@ -224,7 +253,7 @@
 // #define SPEED_COEFFICIENT   0.5
 // #define STEER_COEFFICIENT   -0.2
 
-#endif
+#endif // ******************** END OF IGNORE_GLOBAL_CONFIG
 
 #if (INCLUDE_PROTOCOL == NO_PROTOCOL)
   #undef INCLUDE_PROTOCOL
