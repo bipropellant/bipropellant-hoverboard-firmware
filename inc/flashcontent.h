@@ -49,6 +49,9 @@ typedef struct tag_FLASH_CONTENT{
     unsigned short MaxCurrLim;
 
     unsigned short HoverboardEnable; // non zero to enable
+    unsigned short calibration_0;
+    unsigned short calibration_1;
+    unsigned short HoverboardPWMLimit;
 
 } FLASH_CONTENT;
 #pragma pack(pop)
@@ -61,4 +64,4 @@ extern const FLASH_CONTENT FlashDefaults;
 #define FLASH_DEFAULT_HOVERBOARD_ENABLE 0
 #endif
 
-#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 200,    20, 10, 0, 10,    1500,   FLASH_DEFAULT_HOVERBOARD_ENABLE }
+#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 1000,    20, 10, 0, 20,    1500,   FLASH_DEFAULT_HOVERBOARD_ENABLE, 0, 0, 1000 }
