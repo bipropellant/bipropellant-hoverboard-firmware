@@ -786,7 +786,7 @@ int main(void) {
           sensor_set_flash(1, 2);
         } else
       #endif
-      if (button_prev && (startup_counter - button_held) > (100 / DELAY_IN_MAIN_LOOP && weakr == 0 && weakl == 0) {
+      if (button_prev && (startup_counter - button_held) > (100 / DELAY_IN_MAIN_LOOP) && weakr == 0 && weakl == 0) {
         enable = 0;
         while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
         poweroff();
