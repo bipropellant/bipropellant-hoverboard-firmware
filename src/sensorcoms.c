@@ -4,6 +4,7 @@
 #include "config.h"
 #include "stdio.h"
 #include "string.h"
+#include "flashcontent.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
 // this file encapsulates coms with the original sensor boards
@@ -73,11 +74,14 @@ SERIAL_USART_IT_BUFFERTYPE USART_sensor_getrx(int port) {
     return serial_usart_buffer_pop(&usart3_it_RXbuffer);
 }
 
+// inializes sensor calibration, must be called after flash init
 void sensor_init(){
     memset((void *)sensorlights, 0, sizeof(sensorlights));
     memset((void *)sensor_data, 0, sizeof(sensor_data));
-    sensor_data[0].bytecount = -1;
-    sensor_data[1].bytecount = -1;
+
+    sensor_data[0].Center_calibration = FlashContent.calibration_0;
+    sensor_data[1].Center_calibration = FlashContent.calibration_1;
+
 }
 
 ///////////////////////////
@@ -156,7 +160,7 @@ void sensor_read_data(){
         } while (remaining);
 
         // we may have read more than one message here (process>1)
-        if (process) {
+        if (process) { 
             s->read_timeout = 10;
             // if we just stepped on
             if (s->complete.AA_55 == 0x55) {
@@ -173,9 +177,16 @@ void sensor_read_data(){
                         }
                     }
                     s->foottime_ms = time_ms;
+                } else if (s->Center !=  s->Center_calibration) {
+                    if ((s->Center > s->Center_calibration) && (s->complete.Angle < s->Center))
+                        s->Center = (s->Center_calibration > s->complete.Angle ? s->Center_calibration : s->complete.Angle); // max
+                    
+                    if ((s->Center < s->Center_calibration) && (s->complete.Angle > s->Center))
+                        s->Center = (s->Center_calibration < s->complete.Angle ? s->Center_calibration : s->complete.Angle); // min
                 }
             }
             if (s->complete.AA_55 == 0xAA){
+                 if (s->sensor_ok > 0) s->sensor_ok--;
                 if (orgsw == 0x55)
                     consoleLog("Stepped Off\r\n");
             }
