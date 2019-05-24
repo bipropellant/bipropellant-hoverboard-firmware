@@ -40,18 +40,27 @@ void sensor_send_lights();
 // the IRQ.
 void USART_sensor_IRQ(int port, USART_TypeDef *us);
 
-
-
-// bytes send from sensor board
+// bytes sent from sensor board
 #pragma pack(push, 1)
-typedef struct tag_sensor_data{
+// note: moved header to top, and then fill from 0x100
+typedef struct tag_sensor_frame{
+  unsigned char header_00; // this byte gets 0x100 (9 bit serial)
   short Angle;
   short Angle_duplicate;
   unsigned char AA_55;
   unsigned char Accelleration;
   unsigned char Accelleration_duplicate;
   short Roll;
-  unsigned char header_00; // this byte gets 0x100 (9 bit serial)
+} SENSOR_FRAME;
+
+#define MAX_SENSOR_WORDS 20
+#define MIN_SENSOR_WORDS 6
+
+typedef struct tag_sensor_data{
+  unsigned char buffer[MAX_SENSOR_WORDS];
+  int bytecount;
+  int framecopied;
+  SENSOR_FRAME complete;
 
   // not included in message:
   int sensor_ok; // set to 10 when 55, decremented if not
@@ -60,6 +69,10 @@ typedef struct tag_sensor_data{
 
   unsigned int foottime_ms; // last time we transitions this foot.
   int doubletap; // indicates user tapped foot sensor twice in 2s
+
+  // the number of words n the last message
+  int last_sensor_words;
+
 } SENSOR_DATA;
 #pragma pack(pop)
 
@@ -68,16 +81,16 @@ typedef struct tag_sensor_data{
 // must be sent twice to take effect if other serial is on the same line
 #pragma pack(push, 1)
 typedef struct tag_sensor_lights {
+  unsigned char colour; // this byte gets bit 8 set (on 9 bit serial);
   unsigned char unknown;
   unsigned char flashcount; // non zero-> red flash number of times with pause
   unsigned char unknown1;
   unsigned char unknown2;
   unsigned char unknown3;
-  unsigned char colour; // this byte gets bit 8 set (on 9 bit serial);
 } SENSOR_LIGHTS;
 #pragma pack(pop)
 
-SENSOR_DATA sensor_data[2];
+extern SENSOR_DATA sensor_data[2];
 
 
 // bit masks for colour
