@@ -752,8 +752,10 @@ int main(void) {
     }
 
     if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
-      sensor_set_flash(0, 2);
-      sensor_set_flash(1, 2);
+      #if defined CONTROL_SENSOR
+        sensor_set_flash(0, 2);
+        sensor_set_flash(1, 2);
+      #endif
       
       if (startup_button_held) {
         if (startup_counter > 5000 / (DELAY_IN_MAIN_LOOP + 1))
@@ -765,8 +767,10 @@ int main(void) {
         {
           button_prev = 1;
           button_held = startup_counter;
+        #if defined CONTROL_SENSOR
           sensor_set_flash(0, 2);
           sensor_set_flash(1, 2);
+        #endif
         }
       }
     } else {
