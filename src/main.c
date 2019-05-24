@@ -273,10 +273,6 @@ int main(void) {
   HAL_ADC_Start(&hadc1);
   HAL_ADC_Start(&hadc2);
 
-  #ifdef READ_SENSOR
-  // initialise to 9 bit interrupt driven comms on USART 2 & 3
-  sensor_init();
-  #endif
   #ifdef SERIAL_USART2_IT
   USART2_IT_init();
   #endif
@@ -292,6 +288,11 @@ int main(void) {
 
   init_PID_control();
 #endif
+
+  #ifdef READ_SENSOR
+  // initialise to 9 bit interrupt driven comms on USART 2 & 3
+  sensor_init();
+  #endif
 
   if (0 == FlashContent.MaxCurrLim) {
     FlashContent.MaxCurrLim = DC_CUR_LIMIT*100;
@@ -311,9 +312,6 @@ int main(void) {
   #ifdef READ_SENSOR
   // things we use in main loop for sensor control
   consoleLog("power on\n");
-  int OnBoard = 0;
-  int Center[2] = {0, 0};
-  int Clamp[2] =  {600, 600};
 
   #endif
   #ifdef HALL_INTERRUPTS
@@ -415,10 +413,9 @@ int main(void) {
   enable = 1;  // enable motors
 
   // ####### POWEROFF BY POWER-BUTTON #######
-  int power_button_held = HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
-
+  int startup_button_held, button_prev = HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
   unsigned int startup_counter = 0;
-
+  unsigned int button_held = 0;
 
   while(1) {
     startup_counter++;
@@ -509,7 +506,7 @@ int main(void) {
 
 
     #if defined(INCLUDE_PROTOCOL)||defined(READ_SENSOR)
-      if (!power_button_held){
+      if (!startup_button_held){
     #endif
     #ifdef READ_SENSOR
         // read the last sensor message in the buffer
@@ -551,20 +548,16 @@ int main(void) {
         int setcolours = 1;
         if (sensor_control && FlashContent.HoverboardEnable){
           if (rollhigh){
+            poweroff();
             enable = 0;
           } else {
-            if ((sensor_data[0].sensor_ok || sensor_data[1].sensor_ok) && !electrical_measurements.charging){
-              if (!OnBoard){
-                Center[0] = sensor_data[0].complete.Angle;
-                Center[1] = sensor_data[1].complete.Angle;
-                OnBoard = 1;
-              }
-
+            if(!electrical_measurements.charging){
               for (int i = 0; i < 2; i++){
-                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].complete.Angle - Center[i])/3+dspeeds[i], -Clamp[i], Clamp[i]);
                 if (sensor_data[i].sensor_ok){
+                  pwms[i] = CLAMP(dirs[i]*(sensor_data[i].complete.Angle - sensor_data[i].Center)/3+dspeeds[i], -FlashContent.HoverboardPWMLimit, FlashContent.HoverboardPWMLimit);
                   sensor_set_colour(i, SENSOR_COLOUR_YELLOW);
                 } else {
+                  pwms[i] = 0;
                   sensor_set_colour(i, SENSOR_COLOUR_GREEN);
                 }
               }
@@ -574,12 +567,9 @@ int main(void) {
               enable = 1;
               inactivity_timeout_counter = 0;
             } else {
-              OnBoard = 0;
-              for (int i = 0; i < 2; i++){
-                pwms[i] = CLAMP(dirs[i]*(sensor_data[i].complete.Angle)/scale[i]+dspeeds[i], -80, 80);
-              }
+              pwms[0] = pwms[1] = 0;
               timeout = 0;
-              enable = 1;
+              enable = 0;
             }
           }
         }
@@ -761,45 +751,47 @@ int main(void) {
 //      SoftwareSerialReadTimer();
     }
 
-
-    if (power_button_held){
-      // highlight that the button has been helpd for >5s
-      if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
-        #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+    if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
+      sensor_set_flash(0, 2);
+      sensor_set_flash(1, 2);
+      
+      if (startup_button_held) {
+        if (startup_counter > 5000 / (DELAY_IN_MAIN_LOOP + 1))
+        {
+          // provisional startup mode
+        }
+      } else {
+        if (button_prev == 0)
+        {
+          button_prev = 1;
+          button_held = startup_counter;
           sensor_set_flash(0, 2);
           sensor_set_flash(1, 2);
-        #endif
-      }
-
-      if (!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)){
-        // if it was held for > 5 seconds
-        if (startup_counter > (5000/DELAY_IN_MAIN_LOOP)){
-#ifdef EXAMPLE_FLASH_ONLY
-          #if defined CONTROL_SENSOR && defined FLASH_STORAGE
-            calibrationdata[0] = sensor_data[0].complete.Angle;
-            calibrationdata[1] = sensor_data[1].complete.Angle;
-            calibrationread = 1;
-
-            char tmp[40];
-            sprintf(tmp, "\r\n*** Write Flash Calibration data");
-            consoleLog(tmp);
-            writeFlash((unsigned char *) calibrationdata, sizeof(calibrationdata));
-            sensor_set_flash(0, 0);
-            sensor_set_flash(1, 0);
-          #endif
-#endif
         }
-
-        power_button_held = 0;
       }
     } else {
-      // ####### POWEROFF BY POWER-BUTTON #######
-      if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) && weakr == 0 && weakl == 0) {
+      startup_button_held = 0;
+      #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+        if (button_prev && (startup_counter - button_held) > (5000 / DELAY_IN_MAIN_LOOP))
+        {
+          button_held = 0;
+          button_prev = 0;
+          HAL_Delay(2000);
+          FlashContent.calibration_0 = sensor_data[0].Center_calibration = sensor_data[0].complete.Angle;
+          FlashContent.calibration_1 = sensor_data[1].Center_calibration = sensor_data[1].complete.Angle;
+
+          writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
+          consoleLog("\r\n*** Write Flash Calibration data");
+          sensor_set_flash(0, 2);
+          sensor_set_flash(1, 2);
+        } else
+      #endif
+      if (button_prev && (startup_counter - button_held) > (100 / DELAY_IN_MAIN_LOOP && weakr == 0 && weakl == 0) {
         enable = 0;
-        while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {}
+        while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
         poweroff();
       }
-    }
+    }    
 
     // if we plug in the charger, keep us alive
     // also if we have deliberately turned off poweroff over serial
@@ -840,7 +832,7 @@ int main(void) {
     }
 
     // inactivity 10s warning; 1s bleeping
-    if ((inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 50 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) &&
+    if ((inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 50 * 1000) / DELAY_IN_MAIN_LOOP) &&
         (buzzerFreq == 0)) {
       buzzerFreq = 3;
       buzzerPattern = 1;
@@ -848,7 +840,7 @@ int main(void) {
     }
 
     // inactivity 5s warning; 1s bleeping
-    if ((inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 55 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) &&
+    if ((inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 55 * 1000) / DELAY_IN_MAIN_LOOP) &&
         (buzzerFreq == 0)) {
       buzzerFreq = 2;
       buzzerPattern = 1;
@@ -856,7 +848,7 @@ int main(void) {
     }
 
     // power off after ~60s of inactivity
-    if (inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 60 * 1000) / (DELAY_IN_MAIN_LOOP + 1)) {  // rest of main loop needs maybe 1ms
+    if (inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 60 * 1000) / DELAY_IN_MAIN_LOOP ) {  // rest of main loop needs maybe 1ms
       inactivity_timeout_counter = 0;
       poweroff();
     }
