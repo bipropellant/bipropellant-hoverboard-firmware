@@ -885,6 +885,27 @@ int main(void) {
         poweroff();
       }
     }
+    ////////////////////////////////
+    // take stats
+    timeStats.now_us = HallGetuS();
+    
+    timeStats.main_interval_us = timeStats.now_us - timeStats.time_in_us;
+    timeStats.main_delay_us = timeStats.processing_in_us - timeStats.time_in_us;
+    timeStats.main_processing_us = timeStats.now_us - timeStats.processing_in_us;
+    // maybe average main_dur as a stat?
+    if (timeStats.main_interval_ms == 0){
+      timeStats.main_interval_ms = ((float)timeStats.main_interval_us)/1000;
+      timeStats.main_processing_ms = ((float)timeStats.main_processing_us)/1000.0;
+    }
+    timeStats.main_interval_ms = timeStats.main_interval_ms * 0.99;
+    timeStats.main_interval_ms = timeStats.main_interval_ms + (((float)timeStats.main_interval_us)/1000.0)*0.01;
+
+    timeStats.main_processing_ms = timeStats.main_processing_ms * 0.99;
+    timeStats.main_processing_ms = timeStats.main_processing_ms + (((float)timeStats.main_processing_us)/1000.0)*0.01;
+
+    // select next loop start point
+    // move out '5ms' trigger on by 5ms
+    timeStats.start_processing_us = timeStats.start_processing_us + timeStats.nominal_delay_us;
   }
 }
 
