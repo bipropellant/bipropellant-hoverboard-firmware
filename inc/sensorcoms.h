@@ -66,6 +66,7 @@ typedef struct tag_sensor_data{
   int sensor_ok; // set to 10 when 55, decremented if not
   int read_timeout;
   short Center;
+  short Center_calibration;
 
   unsigned int foottime_ms; // last time we transitions this foot.
   int doubletap; // indicates user tapped foot sensor twice in 2s
