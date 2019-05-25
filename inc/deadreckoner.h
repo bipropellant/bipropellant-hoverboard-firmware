@@ -58,3 +58,6 @@ void getW(DEADRECKONER *d, double *w);
 // we don't use these, since hall ticks go up and down
 void setLROmegaDirection(DEADRECKONER *d, int directionL, int directionR);
 void getLROmegaDirection(DEADRECKONER *d, int *directionL, int *directionR);
+
+// the global one
+extern DEADRECKONER *deadreconer;
