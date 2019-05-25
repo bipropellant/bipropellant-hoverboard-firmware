@@ -24,6 +24,29 @@
 
 #include "defines.h"
 
+typedef struct tag_time_stats {
+    // times
+    long long now_us;
+    long long start_processing_us;
+    long long processing_in_us;
+    long long main_interval_us;
+    long long time_in_us;
+    long long main_delay_us;
+    long long main_processing_us;
+
+    long long nominal_delay_us;
+
+    // stats
+    long long us_lost;
+    unsigned int main_late_count;
+
+    float main_interval_ms;
+    float main_processing_ms;
+
+} TIME_STATS;
+
+extern TIME_STATS timeStats;
+
 #define HALL_PIN_MASK (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN | RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN)
 
 //////////////////////////////////////////////////////////////
@@ -66,7 +89,7 @@ void HallInterruptinit(void);
 void HallInterruptSetWheelDiameterInches(float inches);
 void HallInterruptSetWheelDiameterMM(float mm);
 void HallInterruptReset();
-
+long long HallGetuS(); // returns micro seconds (10 x the timer it is based on.....)
 
 // interrupt routine
 void HallInterruptsInterrupt(void);
