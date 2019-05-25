@@ -181,6 +181,9 @@ volatile int vel = 0;
 
 volatile int counts_to_change = 0;
 
+#ifdef HALL_INTERRUPTS
+extern long long now_us;
+#endif
 
 
 //scan 8 channels with 2ADCs @ 20 clk cycles per sample
@@ -192,6 +195,7 @@ void DMA1_Channel1_IRQHandler() {
 #ifdef HALL_INTERRUPTS
   unsigned long time = h_timer_hall.Instance->CNT;
   long long timerwraps_copy = timerwraps;
+  now_us = ((timerwraps_copy<<16) + time) * 10;
 #endif
   unsigned char hall[2];
   hall[0] = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
