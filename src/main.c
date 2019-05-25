@@ -107,6 +107,14 @@ int milli_vel_error_sum = 0;
 DEADRECKONER *deadreconer;
 INTEGER_XYT_POSN xytPosn;
 
+typedef struct tag_power_button_info {
+  int startup_button_held;      // indicates power button was active at startup 
+  int button_prev;              // last value of power button
+  unsigned int button_held_ms;  // ms for which the button has been held down
+} POWER_BUTTON_INFO;
+void check_power_button();
+
+POWER_BUTTON_INFO power_button_info;
 
 void poweroff() {
     if (ABS(speed) < 20) {
@@ -412,13 +420,18 @@ int main(void) {
 
   enable = 1;  // enable motors
 
-  // ####### POWEROFF BY POWER-BUTTON #######
-  int startup_button_held, button_prev = HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
-  unsigned int startup_counter = 0;
-  unsigned int button_held = 0;
+  // ####### POWER-BUTTON startup conditions #######
+  power_button_info.startup_button_held = HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
+  power_button_info.button_prev = power_button_info.startup_button_held;
+  power_button_info.button_held_ms = 0;
+
+  if (power_button_info.startup_button_held) {
+    consoleLog("Power button down at startup\r\n");
+  } else {
+    consoleLog("Power button up at startup\r\n");
+  }
 
   while(1) {
-    startup_counter++;
     computePosition(deadreconer);
     double x,y,t;
     getXYT(deadreconer, &x, &y, &t);
@@ -506,7 +519,7 @@ int main(void) {
 
 
     #if defined(INCLUDE_PROTOCOL)||defined(READ_SENSOR)
-      if (!startup_button_held){
+      if (!power_button_info.startup_button_held){
     #endif
     #ifdef READ_SENSOR
         // read the last sensor message in the buffer
@@ -548,28 +561,42 @@ int main(void) {
         int setcolours = 1;
         if (sensor_control && FlashContent.HoverboardEnable){
           if (rollhigh){
-            poweroff();
+            if (enable) {
+              consoleLog("disable by rollHigh\r\n");
+            }
             enable = 0;
           } else {
             if(!electrical_measurements.charging){
+              int either_sensor_ok = sensor_data[0].sensor_ok || sensor_data[1].sensor_ok;
+
               for (int i = 0; i < 2; i++){
                 if (sensor_data[i].sensor_ok){
                   pwms[i] = CLAMP(dirs[i]*(sensor_data[i].complete.Angle - sensor_data[i].Center)/3+dspeeds[i], -FlashContent.HoverboardPWMLimit, FlashContent.HoverboardPWMLimit);
                   sensor_set_colour(i, SENSOR_COLOUR_YELLOW);
+                  if (!enable) {
+                    consoleLog("enable by hoverboard mode & !rollHigh\r\n");
+                    enable = 1;
+                  }
                 } else {
                   pwms[i] = 0;
+                  if (enable && !either_sensor_ok) {
+                    consoleLog("disable by hoverboard mode & step off\r\n");
+                    enable = 0;
+                  }
                   sensor_set_colour(i, SENSOR_COLOUR_GREEN);
                 }
               }
               // don't set default cilours below
               setcolours = 0;
               timeout = 0;
-              enable = 1;
               inactivity_timeout_counter = 0;
             } else {
               pwms[0] = pwms[1] = 0;
               timeout = 0;
-              enable = 0;
+              if (enable) {
+                consoleLog("disable by charging\r\n");
+                enable = 0;
+              }
             }
           }
         }
@@ -751,51 +778,10 @@ int main(void) {
 //      SoftwareSerialReadTimer();
     }
 
-    if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
-      #if defined CONTROL_SENSOR
-        sensor_set_flash(0, 2);
-        sensor_set_flash(1, 2);
-      #endif
-      
-      if (startup_button_held) {
-        if (startup_counter > 5000 / (DELAY_IN_MAIN_LOOP + 1))
-        {
-          // provisional startup mode
-        }
-      } else {
-        if (button_prev == 0)
-        {
-          button_prev = 1;
-          button_held = startup_counter;
-        #if defined CONTROL_SENSOR
-          sensor_set_flash(0, 2);
-          sensor_set_flash(1, 2);
-        #endif
-        }
-      }
-    } else {
-      startup_button_held = 0;
-      #if defined CONTROL_SENSOR && defined FLASH_STORAGE
-        if (button_prev && (startup_counter - button_held) > (5000 / DELAY_IN_MAIN_LOOP))
-        {
-          button_held = 0;
-          button_prev = 0;
-          HAL_Delay(2000);
-          FlashContent.calibration_0 = sensor_data[0].Center_calibration = sensor_data[0].complete.Angle;
-          FlashContent.calibration_1 = sensor_data[1].Center_calibration = sensor_data[1].complete.Angle;
 
-          writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-          consoleLog("\r\n*** Write Flash Calibration data");
-          sensor_set_flash(0, 2);
-          sensor_set_flash(1, 2);
-        } else
-      #endif
-      if (button_prev && (startup_counter - button_held) > (100 / DELAY_IN_MAIN_LOOP) && weakr == 0 && weakl == 0) {
-        enable = 0;
-        while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
-        poweroff();
-      }
-    }    
+    // does things if power button is pressed, held.
+    check_power_button();
+
 
     // if we plug in the charger, keep us alive
     // also if we have deliberately turned off poweroff over serial
@@ -804,7 +790,13 @@ int main(void) {
     }
 
     // ####### BEEP AND EMERGENCY POWEROFF #######
-    if ((TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && ABS(speed) < 20) || (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && ABS(speed) < 20)) {  // poweroff before mainboard burns OR low bat 3
+    if (TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && ABS(speed) < 20){  // poweroff before mainboard burns OR low bat 3
+      consoleLog("power off by temp\r\n");
+      poweroff();
+    }
+
+    if (batteryVoltage < ((float)BAT_LOW_DEAD * (float)BAT_NUMBER_OF_CELLS) && ABS(speed) < 20) {  // poweroff before mainboard burns OR low bat 3
+      consoleLog("power off by low voltage\r\n");
       poweroff();
     } else if (TEMP_WARNING_ENABLE && board_temp_deg_c >= TEMP_WARNING) {  // beep if mainboard gets hot
       buzzerFreq = 4;
@@ -854,6 +846,7 @@ int main(void) {
     // power off after ~60s of inactivity
     if (inactivity_timeout_counter > (INACTIVITY_TIMEOUT * 60 * 1000) / DELAY_IN_MAIN_LOOP ) {  // rest of main loop needs maybe 1ms
       inactivity_timeout_counter = 0;
+      consoleLog("power off by 60s inactivity\r\n");
       poweroff();
     }
 
@@ -882,11 +875,150 @@ int main(void) {
 
       if (powerofftimer <= 0){
         powerofftimer = 0;
+        consoleLog("power off by timer\r\n");
         poweroff();
       }
     }
   }
 }
+
+
+//////////////////////////////////////////////////////
+// check and do things when we press the power button
+void check_power_button(){
+
+  // if power button is currently down
+  if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
+    // increment how long it has been down for.
+    power_button_info.button_held_ms += DELAY_IN_MAIN_LOOP;
+
+    // if power button was down at start
+    if (power_button_info.startup_button_held) {
+      if (power_button_info.button_held_ms > 5000)
+      {
+        // provisional startup mode - do something if button held for 5s at startup
+      }
+    } else {
+
+      // if we have seen the state released since startup
+      if (power_button_info.button_prev == 0){
+        power_button_info.button_prev = 1;
+        // reset the time pressed to zero
+        power_button_info.button_held_ms = 0;
+      } else {
+        // button remains pressed
+        // indicate how long it has been pressed by colour
+        if ((power_button_info.button_held_ms > 100) && 
+            (power_button_info.button_held_ms < 2000) )
+        {
+        #if defined CONTROL_SENSOR
+          // indicate with 1 flash that this would power off
+          sensor_set_flash(0, 1);
+          sensor_set_flash(1, 1);
+        #endif
+        }
+        if ((power_button_info.button_held_ms >= 2000) && 
+            (power_button_info.button_held_ms < 5000) )
+        {
+        #if defined CONTROL_SENSOR
+          // indicate with 2 flashes that we would not power off, and not calibrate
+          sensor_set_flash(0, 2);
+          sensor_set_flash(1, 2);
+        #endif
+        }
+        if ((power_button_info.button_held_ms > 5000) && 
+            (power_button_info.button_held_ms < 10000) )
+        {
+        #if defined CONTROL_SENSOR
+          // indicate with 3 flashes that we would calibrate
+          sensor_set_flash(0, 3);
+          sensor_set_flash(1, 3);
+        #endif
+        }
+        if ((power_button_info.button_held_ms > 10000) && 
+            (power_button_info.button_held_ms < 100000) )
+        {
+        #if defined CONTROL_SENSOR
+          // indicate with 4 flashes that we would NOT calibrate
+          sensor_set_flash(0, 4);
+          sensor_set_flash(1, 4);
+        #endif
+        }
+      }
+    }
+  } else {
+
+    // ONLY take action if the startup button was NOT down when we started up, or has been released since
+    if (!power_button_info.startup_button_held) {
+      // if this is a button release
+      if (power_button_info.button_prev) {
+        // power button held for < 100ms or > 10s -> nothing
+        if ((power_button_info.button_held_ms >= 10000) || (power_button_info.button_held_ms < 100))
+        {
+          // no action taken
+        }
+
+        // power button held for between 5s and 10s -> HB angle calibration
+        // (only if it had been released since startup)
+        if ((power_button_info.button_held_ms >= 5000) &&
+            (power_button_info.button_held_ms < 10000))
+        {
+          buzzerPattern = 0;
+          enable = 0;
+
+        #if defined CONTROL_SENSOR
+          // indicate we accepted calibrate command
+          sensor_set_flash(0, 8);
+          sensor_set_flash(1, 8);
+        #endif
+
+          // buz to indicate we are calibrating
+          for (int i = 0; i < 20; i++) {
+            buzzerFreq = i & 2;
+            HAL_Delay(100);
+          }
+
+        #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+          // read current board angles, and save to flash as center
+          FlashContent.calibration_0 = sensor_data[0].Center_calibration = sensor_data[0].complete.Angle;
+          FlashContent.calibration_1 = sensor_data[1].Center_calibration = sensor_data[1].complete.Angle;
+          writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
+          consoleLog("*** Write Flash Calibration data\r\n");
+        #else
+          consoleLog("*** Not a hoverboard, no calibrarion done\r\n");
+        #endif
+
+        }
+
+        // power button held for >100ms < 2s -> power off
+        // (only if it had been released since startup)
+        if ((power_button_info.button_held_ms >= 100) && 
+            (power_button_info.button_held_ms < 2000) && 
+            weakr == 0 && 
+            weakl == 0) {
+          enable = 0;
+          //while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
+          consoleLog("power off by button\r\n");
+          poweroff();
+        }
+        
+        // always stop flash after done/released regardless
+      #if defined CONTROL_SENSOR
+        sensor_set_flash(0, 0);
+        sensor_set_flash(1, 0);
+      #endif
+
+      } // end of if power button was previous down
+    }
+
+    // always mark the button as released
+    power_button_info.button_held_ms = 0;
+    power_button_info.button_prev = 0;
+    power_button_info.startup_button_held = 0;
+  } // end of else power button must be up
+}
+
+
 
 /** System Clock Configuration
 */
