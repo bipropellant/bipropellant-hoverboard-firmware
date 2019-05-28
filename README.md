@@ -47,6 +47,9 @@ http://vocke.tv/lib/exe/fetch.php?media=20150722_hoverboard_sch.pdf
 
 
 # Building and flashing
+The repository uses a submodule for the serial protocol.
+Clone with submodules: ´git clone --recurse-submodules´
+Or afterwards: ´git submodule update --init --recursive´
 
 [Take a look at our wiki](https://github.com/bipropellant/hoverboard-firmware/wiki/Building-and-flashing)
 
