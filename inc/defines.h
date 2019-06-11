@@ -157,4 +157,25 @@ typedef struct {
   uint16_t l_tx2;
   uint16_t temp;
   uint16_t l_rx2;
+
+  unsigned char hall[2];
+  unsigned short time;
 } adc_buf_t;
+
+
+#define MAX_ADC_BUFFERS 10
+typedef struct tag_ADCBUFFERS {
+  adc_buf_t buffers[MAX_ADC_BUFFERS];
+  int adcBufferHead;  
+  int adcBufferTail;
+
+  int offsetrl1;
+  int offsetrl2;
+  int offsetrr1;
+  int offsetrr2;
+  int offsetdcl;
+  int offsetdcr;
+
+} ADCBUFFERS;
+
+extern volatile ADCBUFFERS adc_buffers; // in setup.c

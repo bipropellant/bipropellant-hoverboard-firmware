@@ -51,7 +51,12 @@ src/stm32f1xx_it.c \
 src/pid.c \
 src/deadreckoner.c \
 src/hbprotocol/machine_protocol.c \
-src/hbprotocol/ascii_protocol.c
+src/hbprotocol/ascii_protocol.c \
+src/protocolfunctions.c \
+src/ascii_proto_funcs.c \
+src/BLDC_controller_data.c \
+src/BLDC_controller.c
+
 
 # ASM sources
 ASM_SOURCES =  \

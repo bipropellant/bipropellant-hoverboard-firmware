@@ -30,3 +30,6 @@ void MX_ADC2_Init(void);
 void UART_Init(void);
 void USART2_IT_init();
 void USART3_IT_init();
+
+void setUSART2ToControl();
+extern int USART2ProtocolEnable;

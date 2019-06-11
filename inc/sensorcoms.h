@@ -74,6 +74,16 @@ typedef struct tag_sensor_data{
   // the number of words n the last message
   int last_sensor_words;
 
+  // for debug only
+  int side;
+
+  int last_angle;
+
+  // decremented each time we get a high angle.
+  // set to 5 every time values are within limits.
+  // if it get to zero, then stop
+  int rollhigh;
+
 } SENSOR_DATA;
 #pragma pack(pop)
 
@@ -117,5 +127,7 @@ int USART_sensor_txcount(int port);
 // internal functions
 int  USART_sensor_starttx(int port);
 void USART_sensor_addTXshort(int port, SERIAL_USART_IT_BUFFERTYPE value);
+
+int getSensorBaudRate();
 
 #endif

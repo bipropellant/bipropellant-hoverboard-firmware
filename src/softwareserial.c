@@ -220,7 +220,9 @@ int softwareserial_Send(unsigned char *data, int len){
 // used in 'protocol' for long strings, like '?' response
 int softwareserial_Send_Wait(unsigned char *data, int len){
     int orglen = len;
-    while (len){
+    int maxloops = 1000;
+    while (len && maxloops){
+        maxloops--;
         int count = softwareserialTXbuffer.head - softwareserialTXbuffer.tail;
         if (count < 0)
             count += SOFTWARE_SERIAL_BUFFER_SIZE;

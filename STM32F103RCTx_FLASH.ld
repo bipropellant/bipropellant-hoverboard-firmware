@@ -135,6 +135,18 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
   } >RAM AT> FLASH
 
+  .ramfunctions : 
+  {
+    . = ALIGN(4);
+    _sdata_ramfuncs = .;        /* create a global symbol at data start */
+    *(.ramfunctions)       /* .data sections */
+    *(.ramfunctions*)       /* .data sections */
+
+    . = ALIGN(4);
+    _edata_ramfuncs = .;        /* define a global symbol at data end */
+  /* change comment to use in ram */
+  /* } >RAM AT> FLASH */
+  } >FLASH
   
   /* Uninitialized data section */
   . = ALIGN(4);

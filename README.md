@@ -1,5 +1,7 @@
 ![Bipropellant](.github/logo.png)
 
+[![Build Status](https://travis-ci.com/EmanuelFeru/bipropellant-hoverboard-firmware.svg?branch=master)](https://travis-ci.com/EmanuelFeru/bipropellant-hoverboard-firmware)
+
 This firmware is a heavily modified version of [Niklas Fauth's hoverboard firmware](https://github.com/NiklasFauth/hoverboard-firmware-hack) which allows you to:
  * Use the hoverboard AS A HOVERBOARD
  * Control externaly the hoverboard with a reliable serial protocol.
