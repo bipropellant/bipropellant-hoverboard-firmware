@@ -66,7 +66,9 @@ volatile ADCBUFFERS adc_buffers = {
 
 // used in main
 int USART2ProtocolEnable = 0;
-
+#ifdef SERIAL_USART2_IT  
+  static int USART2WordLength = USART2_WORDLENGTH;
+#endif
 
 #ifdef CONTROL_SERIAL_USART2
 
@@ -775,9 +777,8 @@ void MX_ADC2_Init(void) {
 
 void setUSART2ToControl( int enable ) {
 #ifdef SERIAL_USART2_IT  
-  static int USART2WordLength = USART2_WORDLENGTH;
   static int PreviousBaud2;
-  
+
   if (enable) {
     if (0 == USART2ProtocolEnable) {
       USART2ProtocolEnable = 1;
