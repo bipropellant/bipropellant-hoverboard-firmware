@@ -346,6 +346,9 @@ void readADCs() {
   int index = (adc_buffers.adcBufferHead + (MAX_ADC_BUFFERS-1))%MAX_ADC_BUFFERS;
   volatile adc_buf_t *buf = &adc_buffers.buffers[index];
 
+  // some parts of main use this directly.
+  memcpy(&adc_buffer, buf, sizeof(adc_buffer));
+
   batteryVoltage = batteryVoltage * 0.99 + ((float)buf->batt1 * ((float)BAT_CALIB_REAL_VOLTAGE / (float)BAT_CALIB_ADC)) * 0.01;
   electrical_measurements.batteryVoltage = batteryVoltage;
 
