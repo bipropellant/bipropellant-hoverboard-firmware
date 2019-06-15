@@ -159,7 +159,7 @@ void BldcController_Init(){
 
 #define MINIMUMCODE
 
-
+#define BLDC_LIMITER_DECREMENT 5
 
 // interrupt fires when ADC read is complete; read is triggerd from PWM timer.
 // so interrupt fires at PWM rate = 16khz
@@ -246,8 +246,8 @@ void DMA1_Channel1_IRQHandler() {
 
     int abs_dc = ABS(buf->dcl - adc_buffers.offsetdcl);
     if(abs_dc > electrical_measurements.dc_adc_limit) {
-      if (m->pwm_limiter > 1) {
-        m->pwm_limiter -= 1;
+      if (m->pwm_limiter > BLDC_LIMITER_DECREMENT) {
+        m->pwm_limiter -= BLDC_LIMITER_DECREMENT;
 #ifndef MINIMUMCODE    
         m->limiter_count++;
 #endif
@@ -317,8 +317,8 @@ void DMA1_Channel1_IRQHandler() {
 
     int abs_dc = ABS(buf->dcr - adc_buffers.offsetdcr);
     if(abs_dc > electrical_measurements.dc_adc_limit) {
-      if (m->pwm_limiter > 1) {
-        m->pwm_limiter -= 1;
+      if (m->pwm_limiter > BLDC_LIMITER_DECREMENT) {
+        m->pwm_limiter -= BLDC_LIMITER_DECREMENT;
 #ifndef MINIMUMCODE    
         m->limiter_count++;
 #endif
