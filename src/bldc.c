@@ -252,6 +252,10 @@ void DMA1_Channel1_IRQHandler() {
         m->limiter_count++;
 #endif
       }
+    } else {
+      if (m->pwm_limiter < 1024) {
+        m->pwm_limiter++;
+      }
     }
 
     // multiply by 1024 with shift.  divide by 0-1024 according to limiter
