@@ -11,7 +11,7 @@
 // ###############################################################################
 #include "BLDC_controller.h"           /* Model's header file */
 #include "rtwtypes.h"
-#include <memory.h>
+#include <string.h>
 
 // initial values set to defines.
 // we may allow these to be changed later.
