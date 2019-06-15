@@ -517,7 +517,7 @@ void MX_GPIO_Init(void) {
   // cause a problem
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull  = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
   GPIO_InitStruct.Pin = LEFT_TIM_UH_PIN;
   HAL_GPIO_Init(LEFT_TIM_UH_PORT, &GPIO_InitStruct);
