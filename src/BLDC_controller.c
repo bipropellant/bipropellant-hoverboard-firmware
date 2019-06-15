@@ -149,7 +149,7 @@ static int32_T div_nde_s32_floor(int32_T numerator, int32_T denominator)
 }
 
 /* Model step function */
-void BLDC_controller_step(RT_MODEL *const rtM)
+inline void BLDC_controller_step(RT_MODEL *const rtM)
 {
   P *rtP = ((P *) rtM->defaultParam);
   DW *rtDW = ((DW *) rtM->dwork);

@@ -11,7 +11,7 @@
 // ###############################################################################
 #include "BLDC_controller.h"           /* Model's header file */
 #include "rtwtypes.h"
-
+#include <memory.h>
 
 // initial values set to defines.
 // we may allow these to be changed later.
@@ -45,7 +45,10 @@ ExtY rtY_Right;                  /* External outputs */
 // ###############################################################################
 
 
-volatile ELECTRICAL_PARAMS electrical_measurements;
+volatile ELECTRICAL_PARAMS electrical_measurements = {
+  .motors[0].pwm_limiter = 1024,
+  .motors[1].pwm_limiter = 1024,
+};
 
 #define DO_MEASUREMENTS
 
@@ -154,6 +157,8 @@ void BldcController_Init(){
 //=640 cpu cycles
 // Careful - easy to use too many!
 
+#define MINIMUMCODE
+
 
 
 // interrupt fires when ADC read is complete; read is triggerd from PWM timer.
@@ -164,7 +169,9 @@ void DMA1_Channel1_IRQHandler() {
   // note: the h_timer_hall IS a 100khz clock, which we read here just to have a high accuracy time
   // updated at 16khz.
   unsigned long time_in = DWT->CYCCNT;
+#ifndef MINIMUMCODE
   unsigned long time_in_100k = h_timer_hall.Instance->CNT;
+#endif
 #endif
 
   __disable_irq(); // but we want both values at the same time, without interferance
@@ -224,9 +231,12 @@ void DMA1_Channel1_IRQHandler() {
   }
 
   if (doLeft) {
+    volatile MOTOR_ELECTRICAL *m = &electrical_measurements.motors[1];
+#ifndef MINIMUMCODE    
     bldc_count_per_hall_counter[0]++;
+#endif
     //disable PWM when current limit is reached (current chopping)
-    if(electrical_measurements.motors[0].dcAmpsx100 > electrical_measurements.dcCurLim || timeout > TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
+    if(timeout > TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
       LEFT_TIM->BDTR &= ~TIM_BDTR_MOE;
       //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
     } else {
@@ -234,12 +244,28 @@ void DMA1_Channel1_IRQHandler() {
       //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 0);
     }
 
+    int abs_dc = ABS(buf->dcl - adc_buffers.offsetdcl);
+    if(abs_dc > electrical_measurements.dc_adc_limit) {
+      if (m->pwm_limiter > 1) {
+        m->pwm_limiter -= 1;
+#ifndef MINIMUMCODE    
+        m->limiter_count++;
+#endif
+      }
+    }
+
+    // multiply by 1024 with shift.  divide by 0-1024 according to limiter
+    int pwm_mod = (m->pwm_limiter*pwml) >> 10;
+#ifndef MINIMUMCODE    
+    m->pwm_requested = pwml;
+    m->pwm_actual = pwm_mod;
+#endif
     int ul = 0, vl = 0, wl = 0;
     //update PWM channels based on position
 
     if (BldcControllerParams.ctrlTypSel == BLDC_CONTROL_TYPE_ORIGINAL) {
       int posl = (hall_to_pos[hall[0]] + 2) % 6;
-      blockPWM(pwml, posl, &ul, &vl, &wl);
+      blockPWM(pwm_mod, posl, &ul, &vl, &wl);
     } else {
       // else use new control style
       if (BldcControllerParams.initialized) {
@@ -248,7 +274,7 @@ void DMA1_Channel1_IRQHandler() {
         rtU_Left.b_hallA   = hall_ul;
         rtU_Left.b_hallB   = hall_vl;
         rtU_Left.b_hallC   = hall_wl;
-        rtU_Left.r_DC      = -pwml;
+        rtU_Left.r_DC      = -pwm_mod;
       __enable_irq();
 
         /* Step the controller */
@@ -274,19 +300,44 @@ void DMA1_Channel1_IRQHandler() {
   }
 
   if (doRight) {
+    volatile MOTOR_ELECTRICAL *m = &electrical_measurements.motors[1];
+    
+#ifndef MINIMUMCODE    
     bldc_count_per_hall_counter[1]++;
-    if(electrical_measurements.motors[1].dcAmpsx100 > electrical_measurements.dcCurLim || timeout > TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
+#endif
+    if(timeout > TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
       RIGHT_TIM->BDTR &= ~TIM_BDTR_MOE;
     } else {
       RIGHT_TIM->BDTR |= TIM_BDTR_MOE;
     }
 
+    int abs_dc = ABS(buf->dcr - adc_buffers.offsetdcr);
+    if(abs_dc > electrical_measurements.dc_adc_limit) {
+      if (m->pwm_limiter > 1) {
+        m->pwm_limiter -= 1;
+#ifndef MINIMUMCODE    
+        m->limiter_count++;
+#endif
+      }
+    } else {
+      if (m->pwm_limiter < 1024) {
+        m->pwm_limiter++;
+      }
+    }
+     
+
+    // multiply by 1024 with shift.  divide by 0-1024 according to limiter
+    int pwm_mod = (m->pwm_limiter*pwmr) >> 10;
+#ifndef MINIMUMCODE    
+    m->pwm_actual = pwm_mod;
+    m->pwm_requested = pwmr;
+#endif
     int ur = 0, vr = 0, wr = 0;
     //update PWM channels based on position
 
     if (BldcControllerParams.ctrlTypSel == BLDC_CONTROL_TYPE_ORIGINAL) {
       int posr = (hall_to_pos[hall[1]] + 2) % 6;
-      blockPWM(pwmr, posr, &ur, &vr, &wr);
+      blockPWM(pwm_mod, posr, &ur, &vr, &wr);
     } else {
       // else use new control style
       if (BldcControllerParams.initialized) {
@@ -294,7 +345,7 @@ void DMA1_Channel1_IRQHandler() {
         rtU_Right.b_hallA  = hall_ur;
         rtU_Right.b_hallB  = hall_vr;
         rtU_Right.b_hallC  = hall_wr;
-        rtU_Right.r_DC     = -pwmr;
+        rtU_Right.r_DC     = -pwm_mod;
       __enable_irq();
 
         /* Step the controller */
@@ -325,6 +376,7 @@ void DMA1_Channel1_IRQHandler() {
     time_out += 0x80000000;
     time_in += 0x80000000;
   }
+#ifndef MINIMUMCODE    
   unsigned short time_out_100k = h_timer_hall.Instance->CNT;
   if (time_out_100k < time_in_100k) {
     time_out_100k += 0x8000;
@@ -332,6 +384,7 @@ void DMA1_Channel1_IRQHandler() {
   }
 
   timeStats.bldc_100k = time_out_100k - time_in_100k;
+#endif
   timeStats.bldc_cycles = (time_out - time_in);
 #endif
 
@@ -347,7 +400,7 @@ void readADCs() {
   volatile adc_buf_t *buf = &adc_buffers.buffers[index];
 
   // some parts of main use this directly.
-  memcpy(&adc_buffer, buf, sizeof(adc_buffer));
+  memcpy((void *)&adc_buffer, (void *)buf, sizeof(adc_buffer));
 
   batteryVoltage = batteryVoltage * 0.99 + ((float)buf->batt1 * ((float)BAT_CALIB_REAL_VOLTAGE / (float)BAT_CALIB_ADC)) * 0.01;
   electrical_measurements.batteryVoltage = batteryVoltage;
@@ -367,6 +420,8 @@ void readADCs() {
   float dcrAmps = (float)ABS(buf->dcr - adc_buffers.offsetdcr) * MOTOR_AMP_CONV_DC_AMP;
   electrical_measurements.motors[1].dcAmps = dcrAmps;
   electrical_measurements.motors[1].dcAmpsx100 = (int)(dcrAmps*100.0);
+
+  electrical_measurements.dc_adc_limit = ((float)electrical_measurements.dcCurLim/100.0)/MOTOR_AMP_CONV_DC_AMP;
 
   electrical_measurements.motors[1].dcAmpsAvg = electrical_measurements.motors[1].dcAmpsAvg*0.99 + electrical_measurements.motors[1].dcAmps*0.01;
   int posr = (hall_to_pos[buf->hall[1]] + 2) % 6;
