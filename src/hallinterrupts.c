@@ -69,7 +69,7 @@ volatile uint8_t hall_ur;
 volatile uint8_t hall_vr;
 volatile uint8_t hall_wr;
 
-extern volatile unsigned  bldc_count_per_hall[2];
+volatile unsigned  bldc_count_per_hall[2] = {0, 0};
 extern volatile unsigned  bldc_count_per_hall_counter[2];
 
 //////////////////////////////////////////////////////////////
