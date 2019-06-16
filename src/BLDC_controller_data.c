@@ -24,7 +24,7 @@
 #include "BLDC_controller.h"
 
 /* Constant parameters (auto storage) */
-const ConstP rtConstP = {
+ConstP rtConstP = {
   /* Computed Parameter: r_trapPhaA_M1_Table
    * Referenced by: '<S18>/r_trapPhaA_M1'
    */

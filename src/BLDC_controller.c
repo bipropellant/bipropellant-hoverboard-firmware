@@ -85,12 +85,12 @@ preprocessor word size checks.
 #endif
 #endif
 
-uint8_T plook_u8s32u32n31_evenc_s(int32_T u, int32_T bp0, uint32_T bpSpace,
+static inline uint8_T plook_u8s32u32n31_evenc_s(int32_T u, int32_T bp0, uint32_T bpSpace,
   uint32_T maxIndex, uint32_T *fraction);
-int16_T intrp1d_s16s32s32u8u32n31l_s(uint8_T bpIndex, uint32_T frac, const
+static inline int16_T intrp1d_s16s32s32u8u32n31l_s(uint8_T bpIndex, uint32_T frac, const
   int16_T table[]);
-int32_T div_nde_s32_floor(int32_T numerator, int32_T denominator);
-uint8_T plook_u8s32u32n31_evenc_s(int32_T u, int32_T bp0, uint32_T bpSpace,
+static inline int32_T div_nde_s32_floor(int32_T numerator, int32_T denominator);
+static inline uint8_T plook_u8s32u32n31_evenc_s(int32_T u, int32_T bp0, uint32_T bpSpace,
   uint32_T maxIndex, uint32_T *fraction)
 {
   uint8_T bpIndex;
@@ -124,7 +124,7 @@ uint8_T plook_u8s32u32n31_evenc_s(int32_T u, int32_T bp0, uint32_T bpSpace,
   return bpIndex;
 }
 
-int16_T intrp1d_s16s32s32u8u32n31l_s(uint8_T bpIndex, uint32_T frac, const
+static inline int16_T intrp1d_s16s32s32u8u32n31l_s(uint8_T bpIndex, uint32_T frac, const
   int16_T table[])
 {
   uint32_T offset_0d;
@@ -140,7 +140,7 @@ int16_T intrp1d_s16s32s32u8u32n31l_s(uint8_T bpIndex, uint32_T frac, const
     * frac) >> 31) + table[offset_0d]);
 }
 
-int32_T div_nde_s32_floor(int32_T numerator, int32_T denominator)
+static inline int32_T div_nde_s32_floor(int32_T numerator, int32_T denominator)
 {
   return (((numerator < 0) != (denominator < 0)) && (numerator % denominator !=
            0) ? -1 : 0) + numerator / denominator;

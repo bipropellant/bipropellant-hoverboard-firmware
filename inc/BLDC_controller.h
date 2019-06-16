@@ -192,7 +192,7 @@ struct tag_RTM {
 };
 
 /* Constant parameters (auto storage) */
-extern const ConstP rtConstP;
+extern ConstP rtConstP;
 
 /* Model entry point functions */
 extern void BLDC_controller_initialize(RT_MODEL *const rtM);
