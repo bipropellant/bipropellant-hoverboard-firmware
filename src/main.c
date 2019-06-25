@@ -58,14 +58,6 @@ int cmd3;
 int autoSensorBaud2 = 0; // in USART2_IT_init
 int autoSensorBaud3 = 0; // in USART3_IT_init
 
-typedef struct{
-   int16_t steer;
-   int16_t speed;
-   //uint32_t crc;
-} Serialcommand;
-
-volatile Serialcommand command;
-
 int sensor_control = 0;
 
 #ifdef READ_SENSOR
@@ -111,7 +103,7 @@ DEADRECKONER *deadreconer;
 INTEGER_XYT_POSN xytPosn;
 
 typedef struct tag_power_button_info {
-  int startup_button_held;      // indicates power button was active at startup 
+  int startup_button_held;      // indicates power button was active at startup
   int button_prev;              // last value of power button
   unsigned int button_held_ms;  // ms for which the button has been held down
 } POWER_BUTTON_INFO;
@@ -350,11 +342,6 @@ int main(void) {
     Nunchuck_Init();
   #endif
 
-  #ifdef CONTROL_SERIAL_USART2
-    UART_Control_Init();
-    HAL_UART_Receive_DMA(&huart2, (uint8_t *)&command, 4);
-  #endif
-
   #ifdef INCLUDE_PROTOCOL
 
     #ifdef SOFTWARE_SERIAL
@@ -537,13 +524,6 @@ int main(void) {
       // use ADCs as button inputs:
       button1 = (uint8_t)(adc_buffer.l_tx2 > 2000);  // ADC1
       button2 = (uint8_t)(adc_buffer.l_rx2 > 2000);  // ADC2
-
-      timeout = 0;
-    #endif
-
-    #ifdef CONTROL_SERIAL_USART2
-      cmd1 = CLAMP((int16_t)command.steer, -1000, 1000);
-      cmd2 = CLAMP((int16_t)command.speed, -1000, 1000);
 
       timeout = 0;
     #endif
@@ -895,7 +875,7 @@ int main(void) {
     // take stats
     timeStats.now_us = HallGetuS();
     timeStats.now_ms = HAL_GetTick();
-    
+
     timeStats.main_interval_us = timeStats.now_us - timeStats.time_in_us;
     timeStats.main_interval_ms = timeStats.now_ms - timeStats.time_in_ms;
     timeStats.main_delay_us = timeStats.processing_in_us - timeStats.time_in_us;
@@ -946,7 +926,7 @@ void check_power_button(){
       } else {
         // button remains pressed
         // indicate how long it has been pressed by colour
-        if ((power_button_info.button_held_ms > 100) && 
+        if ((power_button_info.button_held_ms > 100) &&
             (power_button_info.button_held_ms < 2000) )
         {
         #if defined CONTROL_SENSOR
@@ -955,7 +935,7 @@ void check_power_button(){
           sensor_set_flash(1, 1);
         #endif
         }
-        if ((power_button_info.button_held_ms >= 2000) && 
+        if ((power_button_info.button_held_ms >= 2000) &&
             (power_button_info.button_held_ms < 5000) )
         {
         #if defined CONTROL_SENSOR
@@ -964,7 +944,7 @@ void check_power_button(){
           sensor_set_flash(1, 2);
         #endif
         }
-        if ((power_button_info.button_held_ms > 5000) && 
+        if ((power_button_info.button_held_ms > 5000) &&
             (power_button_info.button_held_ms < 10000) )
         {
         #if defined CONTROL_SENSOR
@@ -973,7 +953,7 @@ void check_power_button(){
           sensor_set_flash(1, 3);
         #endif
         }
-        if ((power_button_info.button_held_ms > 10000) && 
+        if ((power_button_info.button_held_ms > 10000) &&
             (power_button_info.button_held_ms < 15000) )
         {
         #if defined CONTROL_SENSOR
@@ -982,7 +962,7 @@ void check_power_button(){
           sensor_set_flash(1, 4);
         #endif
         }
-        if ((power_button_info.button_held_ms > 15000) && 
+        if ((power_button_info.button_held_ms > 15000) &&
             (power_button_info.button_held_ms < 100000) )
         {
         #if defined CONTROL_SENSOR
@@ -1068,14 +1048,14 @@ void check_power_button(){
 
         // power button held for >100ms < 2s -> power off
         // (only if it had been released since startup)
-        if ((power_button_info.button_held_ms >= 100) && 
+        if ((power_button_info.button_held_ms >= 100) &&
             (power_button_info.button_held_ms < 2000)) {
           enable = 0;
           //while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
           consoleLog("power off by button\r\n");
           poweroff();
         }
-        
+
         // always stop flash after done/released regardless
       #if defined CONTROL_SENSOR
         sensor_set_flash(0, 0);

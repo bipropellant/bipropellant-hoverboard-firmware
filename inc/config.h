@@ -273,13 +273,6 @@
 
 // ############################### INPUT ###############################
 
-// ###### CONTROL VIA UART (serial) ######
-//#define CONTROL_SERIAL_USART2       // left sensor board cable, disable if ADC or PPM is used!
-                                      // control via usart from eg an Arduino or raspberry
-// for Arduino, use void loop(void){ Serial.write((uint8_t *) &steer, sizeof(steer)); Serial.write((uint8_t *) &speed, sizeof(speed));delay(20); }
-
-//////////////////////////////////////////////////////////////////
-
 // ###### CONTROL VIA RC REMOTE ######
 // left sensor board cable. Channel 1: steering, Channel 2: speed.
 //#define CONTROL_PPM                 // use PPM-Sum as input. disable DEBUG_SERIAL_USART2!
@@ -370,14 +363,6 @@
 //////////////////////////////////////////////////////////
 
 // ############################### VALIDATE SETTINGS ###############################
-
-#if defined CONTROL_SERIAL_USART2 && defined CONTROL_ADC
-  #error CONTROL_ADC and CONTROL_SERIAL_USART2 not allowed. it is on the same cable.
-#endif
-
-#if defined CONTROL_SERIAL_USART2 && defined CONTROL_PPM
-  #error CONTROL_PPM and CONTROL_SERIAL_USART2 not allowed. it is on the same cable.
-#endif
 
 #if defined DEBUG_SERIAL_USART3 && defined CONTROL_NUNCHUCK
   #error CONTROL_NUNCHUCK and DEBUG_SERIAL_USART3 not allowed. it is on the same cable.
