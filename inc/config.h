@@ -264,13 +264,9 @@
   #define INACTIVITY_TIMEOUT 8        // minutes of not driving until poweroff. it is not very precise.
 #endif
 
-// ############################### LCD DEBUG ###############################
-
-//#define DEBUG_I2C_LCD             // standard 16x2 or larger text-lcd via i2c-converter on right sensor board cable
-
 // ############################### SERIAL DEBUG ###############################
 
-//#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuck or lcd) is used!
+//#define DEBUG_SERIAL_USART3         // right sensor board cable, disable if I2C (nunchuk) is used!
 //#define DEBUG_SERIAL_SENSOR         // send to USART3 sensor board, without framing, at the CONTROL_SENSOR_BAUD rate
 //#define DEBUG_SERIAL_SERVOTERM
 //#define DEBUG_SERIAL_ASCII          // "1:345 2:1337 3:0 4:0 5:0 6:0 7:0 8:0\r\n"
@@ -385,10 +381,6 @@
 
 #if defined DEBUG_SERIAL_USART3 && defined CONTROL_NUNCHUCK
   #error CONTROL_NUNCHUCK and DEBUG_SERIAL_USART3 not allowed. it is on the same cable.
-#endif
-
-#if defined DEBUG_SERIAL_USART3 && defined DEBUG_I2C_LCD
-  #error DEBUG_I2C_LCD and DEBUG_SERIAL_USART3 not allowed. it is on the same cable.
 #endif
 
 #if defined DEBUG_SERIAL_USART3 && defined CONTROL_SENSOR
