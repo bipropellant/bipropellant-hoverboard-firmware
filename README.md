@@ -1,5 +1,9 @@
 ![Bipropellant](.github/logo.png)
 
+bipropellant[ bahy-pruh-pel-uh nt ] - Most liquid-propellant rockets use bipropellant systems — i.e., those in which an oxidizer and a fuel are tanked separately and mixed in the combustion chamber.
+
+This repo, when mixed with the [protocol](https://github.com/bipropellant/bipropellant-protocol) repo, rocket-propels your hoverboard derived projects, now with added sinusoidal motor control.
+
 [![Build Status](https://travis-ci.com/EmanuelFeru/bipropellant-hoverboard-firmware.svg?branch=master)](https://travis-ci.com/EmanuelFeru/bipropellant-hoverboard-firmware)
 
 This firmware is a heavily modified version of [Niklas Fauth's hoverboard firmware](https://github.com/NiklasFauth/hoverboard-firmware-hack) which allows you to:
