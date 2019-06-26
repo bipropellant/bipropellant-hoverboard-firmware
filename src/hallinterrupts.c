@@ -61,6 +61,16 @@
 // void HallInterruptReadPosn( HALL_POSN *p, int Reset )
 volatile HALL_DATA_STRUCT HallData[2];
 
+volatile uint8_t hall_ul;
+volatile uint8_t hall_vl;
+volatile uint8_t hall_wl;
+
+volatile uint8_t hall_ur;
+volatile uint8_t hall_vr;
+volatile uint8_t hall_wr;
+
+volatile unsigned  bldc_count_per_hall[2] = {0, 0};
+extern volatile unsigned  bldc_count_per_hall_counter[2];
 
 //////////////////////////////////////////////////////////////
 // local data
@@ -199,9 +209,12 @@ static const int increments[7][7] =
 
 TIME_STATS timeStats;
 
-long long now_us = 0;
+static volatile long long now_us = 0;
 
 long long HallGetuS(){
+    unsigned short time = h_timer_hall.Instance->CNT;
+    long long timerwraps_copy = timerwraps;
+    now_us = ((timerwraps_copy<<16) + time) * 10;
     return now_us;
 }
 
@@ -215,6 +228,18 @@ void HallInterruptsInterrupt(void){
     long long timerwraps_copy = timerwraps;
     local_hall_params[0].hall = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
     local_hall_params[1].hall = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
+
+    unsigned short Left = LEFT_HALL_U_PORT->IDR;
+    unsigned short Right = RIGHT_HALL_U_PORT->IDR;
+
+    // Get hall sensors values
+    hall_ul = !(Left & LEFT_HALL_U_PIN);
+    hall_vl = !(Left & LEFT_HALL_V_PIN);
+    hall_wl = !(Left & LEFT_HALL_W_PIN);
+
+    hall_ur = !(Right & RIGHT_HALL_U_PIN);
+    hall_vr = !(Right & RIGHT_HALL_V_PIN);
+    hall_wr = !(Right & RIGHT_HALL_W_PIN);
     __enable_irq();
 
     for (int i = 0; i < 2; i++){
@@ -223,6 +248,9 @@ void HallInterruptsInterrupt(void){
             if (local_hall_params[i].last_hall == 0){
                 // valid startup condition
             } else {
+                bldc_count_per_hall[i] = bldc_count_per_hall_counter[i];
+                bldc_count_per_hall_counter[i] = 0;
+
                 local_hall_params[i].zerospeedtimeout = 5; // number of timer wraps to after which to assume speed zero
                 local_hall_params[i].hall_time = (timerwraps_copy << 16) | time;
                 long long dt = local_hall_params[i].hall_time - local_hall_params[i].last_hall_time;

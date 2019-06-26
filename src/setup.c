@@ -51,7 +51,24 @@ UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 volatile adc_buf_t adc_buffer;
+volatile ADCBUFFERS adc_buffers = {
+  .adcBufferHead = 0,
+  .adcBufferTail = 0,
 
+  .offsetrl1 = 2000,
+  .offsetrl2 = 2000,
+  .offsetrr1 = 2000,
+  .offsetrr2 = 2000,
+  .offsetdcl = 2000,
+  .offsetdcr = 2000,
+
+};
+
+// used in main
+int USART2ProtocolEnable = 0;
+#ifdef SERIAL_USART2_IT  
+  static int USART2WordLength = USART2_WORDLENGTH;
+#endif
 
 #ifdef CONTROL_SERIAL_USART2
 
@@ -197,13 +214,18 @@ void USART2_IT_init(){
     memset((void*)&usart2_it_TXbuffer, 0, sizeof(usart2_it_TXbuffer));
     memset((void*)&usart2_it_RXbuffer, 0, sizeof(usart2_it_RXbuffer));
 
+    HAL_NVIC_DisableIRQ(USART2_IRQn);
+
     memset(&huart2, 0, sizeof(huart2));
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_USART2_CLK_ENABLE();
 
     huart2.Instance          = USART2;
     huart2.Init.BaudRate     = USART2_BAUD;
-    huart2.Init.WordLength   = USART2_WORDLENGTH;
+    if (autoSensorBaud2) {
+      huart2.Init.BaudRate   = autoSensorBaud2;
+    }
+    huart2.Init.WordLength   = USART2WordLength;
     huart2.Init.StopBits     = UART_STOPBITS_1;
     huart2.Init.Parity       = UART_PARITY_NONE;
     huart2.Init.Mode         = UART_MODE_TX_RX;
@@ -245,6 +267,9 @@ void USART3_IT_init(){
 
     huart3.Instance          = USART3;
     huart3.Init.BaudRate     = USART3_BAUD;
+    if (autoSensorBaud3) {
+      huart3.Init.BaudRate   = autoSensorBaud3;
+    }
     huart3.Init.WordLength   = USART3_WORDLENGTH;
     huart3.Init.StopBits     = UART_STOPBITS_1;
     huart3.Init.Parity       = UART_PARITY_NONE;
@@ -370,14 +395,19 @@ void MX_GPIO_Init(void) {
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
+  ////////////////////////////////////////////////////
+  // input pins without pull-up, fast speed
+  // explicitly set what we want, so that a change above will not
+  // cause a problem
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull  = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
-  GPIO_InitStruct.Pin = LEFT_HALL_U_PIN;
   #ifdef HALL_INTERRUPTS
     GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING_FALLING;
   #endif
+
+  GPIO_InitStruct.Pin = LEFT_HALL_U_PIN;
   HAL_GPIO_Init(LEFT_HALL_U_PORT, &GPIO_InitStruct);
 
   GPIO_InitStruct.Pin = LEFT_HALL_V_PIN;
@@ -394,18 +424,43 @@ void MX_GPIO_Init(void) {
 
   GPIO_InitStruct.Pin = RIGHT_HALL_W_PIN;
   HAL_GPIO_Init(RIGHT_HALL_W_PORT, &GPIO_InitStruct);
+  ////////////////////////////////////////////////////
 
+
+  ////////////////////////////////////////////////////
+  // input pins with pull-up
+  // explicitly set what we want, so that a change above will not
+  // cause a problem
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pin = CHARGER_PIN;
   GPIO_InitStruct.Pull  = GPIO_PULLUP;
+
+  GPIO_InitStruct.Pin = CHARGER_PIN;
   HAL_GPIO_Init(CHARGER_PORT, &GPIO_InitStruct);
+  ////////////////////////////////////////////////////
+
+
+
+  ////////////////////////////////////////////////////
+  // input pins without pull-up
+  // explicitly set what we want, so that a change above will not
+  // cause a problem
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull  = GPIO_NOPULL;
 
   GPIO_InitStruct.Pin = BUTTON_PIN;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
+  ////////////////////////////////////////////////////
 
 
+  ////////////////////////////////////////////////////
+  // slow output pins
+  // explicitly set what we want, so that a change above will not
+  // cause a problem
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
 
   GPIO_InitStruct.Pin = LED_PIN;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
@@ -415,9 +470,16 @@ void MX_GPIO_Init(void) {
 
   GPIO_InitStruct.Pin = OFF_PIN;
   HAL_GPIO_Init(OFF_PORT, &GPIO_InitStruct);
+  ////////////////////////////////////////////////////
 
 
+  ////////////////////////////////////////////////////
+  // Analog input pins
+  // explicitly set what we want, so that a change above will not
+  // cause a problem
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
   GPIO_InitStruct.Pin = LEFT_DC_CUR_PIN;
   HAL_GPIO_Init(LEFT_DC_CUR_PORT, &GPIO_InitStruct);
@@ -445,8 +507,17 @@ void MX_GPIO_Init(void) {
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
   GPIO_InitStruct.Pin = GPIO_PIN_2;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  /////////////////////////////////////////////////////
 
+
+
+  ////////////////////////////////////////////////////
+  // PWM output pins
+  // explicitly set what we want, so that a change above will not
+  // cause a problem
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
   GPIO_InitStruct.Pin = LEFT_TIM_UH_PIN;
   HAL_GPIO_Init(LEFT_TIM_UH_PORT, &GPIO_InitStruct);
@@ -483,6 +554,7 @@ void MX_GPIO_Init(void) {
 
   GPIO_InitStruct.Pin = RIGHT_TIM_WL_PIN;
   HAL_GPIO_Init(RIGHT_TIM_WL_PORT, &GPIO_InitStruct);
+  ///////////////////////////////////////////////////
 }
 
 void MX_TIM_Init(void) {
@@ -646,7 +718,7 @@ void MX_ADC1_Init(void) {
   DMA1_Channel1->CCR   = 0;
   DMA1_Channel1->CNDTR = 5;
   DMA1_Channel1->CPAR  = (uint32_t) & (ADC1->DR);
-  DMA1_Channel1->CMAR  = (uint32_t)&adc_buffer;
+  DMA1_Channel1->CMAR  = (uint32_t)&adc_buffers.buffers[0];
   DMA1_Channel1->CCR   = DMA_CCR_MSIZE_1 | DMA_CCR_PSIZE_1 | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_TCIE;
   DMA1_Channel1->CCR |= DMA_CCR_EN;
 
@@ -701,4 +773,29 @@ void MX_ADC2_Init(void) {
 
   hadc2.Instance->CR2 |= ADC_CR2_DMA;
   __HAL_ADC_ENABLE(&hadc2);
+}
+
+void setUSART2ToControl( int enable ) {
+#ifdef SERIAL_USART2_IT  
+  static int PreviousBaud2;
+
+  if (enable) {
+    if (0 == USART2ProtocolEnable) {
+      USART2ProtocolEnable = 1;
+      USART2WordLength = 8;
+      PreviousBaud2 = autoSensorBaud2;
+      autoSensorBaud2 = USART2PROTOCOLBAUD;
+      // re-initialise USART
+      USART2_IT_init();
+    }
+  } else {
+    if (USART2ProtocolEnable) {
+      USART2ProtocolEnable = 0;
+      USART2WordLength = USART2_WORDLENGTH;
+      autoSensorBaud2 = PreviousBaud2;
+      // re-initialise USART
+      USART2_IT_init();
+    }
+  }
+#endif  
 }

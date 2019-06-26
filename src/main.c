@@ -37,6 +37,7 @@
 #include "deadreckoner.h"
 
 #include <string.h>
+void BldcController_Init();
 
 void SystemClock_Config(void);
 
@@ -49,9 +50,14 @@ extern volatile adc_buf_t adc_buffer;
 extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart2;
 
+extern volatile long long bldc_counter;
 int cmd1;  // normalized input values. -1000 to 1000
 int cmd2;
 int cmd3;
+
+// used if set in setup.c
+int autoSensorBaud2 = 0; // in USART2_IT_init
+int autoSensorBaud3 = 0; // in USART3_IT_init
 
 typedef struct{
    int16_t steer;
@@ -82,8 +88,6 @@ int speed; // global variable for speed. -1000 to 1000
 
 extern volatile int pwml;  // global variable for pwm left. -1000 to 1000
 extern volatile int pwmr;  // global variable for pwm right. -1000 to 1000
-extern volatile int weakl; // global variable for field weakening left. -1000 to 1000
-extern volatile int weakr; // global variable for field weakening right. -1000 to 1000
 
 extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
@@ -142,6 +146,7 @@ int pwms[2] = {0, 0};
 
 // unused, but keep ascii from erroring
 int dspeeds[2] = {0,0};
+
 
 
 /////////////////////////////////////////
@@ -280,6 +285,15 @@ int main(void) {
   HAL_ADC_Start(&hadc1);
   HAL_ADC_Start(&hadc2);
 
+  #ifdef READ_SENSOR
+  if (USART2_BAUD_SENSE) {
+    autoSensorBaud2 = getSensorBaudRate(0);
+  }
+  if (USART3_BAUD_SENSE) {
+    autoSensorBaud3 = getSensorBaudRate(1);
+  }
+  #endif
+
   #ifdef SERIAL_USART2_IT
   USART2_IT_init();
   #endif
@@ -304,7 +318,9 @@ int main(void) {
   if (0 == FlashContent.MaxCurrLim) {
     FlashContent.MaxCurrLim = DC_CUR_LIMIT*100;
   }
-  electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
+  electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT*100, FlashContent.MaxCurrLim);
+
+
 
   for (int i = 8; i >= 0; i--) {
     buzzerFreq = i;
@@ -356,7 +372,7 @@ int main(void) {
 
     #endif
 
-    #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+    #if defined(SERIAL_USART2_IT)
 
       extern int USART2_IT_send(unsigned char *data, int len);
 
@@ -389,7 +405,6 @@ int main(void) {
     #endif
 
     int last_control_type = CONTROL_TYPE_NONE;
-
   #endif
 
   #ifdef DEBUG_I2C_LCD
@@ -430,12 +445,29 @@ int main(void) {
     consoleLog("Power button up at startup\r\n");
   }
 
+
+  timeStats.hclkFreq = HAL_RCC_GetHCLKFreq();
+
   timeStats.now_us = HallGetuS();
+  timeStats.now_ms = HAL_GetTick();
   timeStats.nominal_delay_us = (DELAY_IN_MAIN_LOOP * 1000);
   timeStats.start_processing_us = timeStats.now_us + timeStats.nominal_delay_us;
+  timeStats.start_processing_ms = timeStats.now_ms + DELAY_IN_MAIN_LOOP;
+
+  long long start_bldc_counter = bldc_counter;
+  HAL_Delay(200);
+  long long bldc_counter_200ms = bldc_counter;
+
+  int bldc_in_200ms = (int)(bldc_counter_200ms - start_bldc_counter);
+  timeStats.bldc_freq = bldc_in_200ms * 5;
+
+  // uses timeStats.bldc_freq
+  BldcControllerParams.callFrequency = timeStats.bldc_freq;
+  BldcController_Init();
 
   while(1) {
     timeStats.time_in_us = timeStats.now_us;
+    timeStats.time_in_ms = timeStats.now_ms;
 
     if (timeStats.start_processing_us < timeStats.now_us) {
       timeStats.us_lost += timeStats.now_us - timeStats.start_processing_us;
@@ -453,6 +485,16 @@ int main(void) {
           protocol_tick( &sSoftwareSerial );
         #endif
 
+        #if defined(SERIAL_USART2_IT) && defined(READ_SENSOR)
+          // if we enabled USART2 as protocol from power button at startup
+          if (USART2ProtocolEnable) {
+            while ( serial_usart_buffer_count(&usart2_it_RXbuffer) > 0 ) {
+              protocol_byte( &sUSART2, (unsigned char) serial_usart_buffer_pop(&usart2_it_RXbuffer) );
+            }
+            protocol_tick( &sUSART2 );
+          }
+        #endif
+
         #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
           while ( serial_usart_buffer_count(&usart2_it_RXbuffer) > 0 ) {
             protocol_byte( &sUSART2, (unsigned char) serial_usart_buffer_pop(&usart2_it_RXbuffer) );
@@ -468,10 +510,17 @@ int main(void) {
         #endif
       #endif
       timeStats.now_us = HallGetuS();
+      timeStats.now_ms = HAL_GetTick();
     }
 
     // move out '5ms' trigger on by 5ms
     timeStats.processing_in_us = timeStats.now_us;
+    timeStats.processing_in_ms = timeStats.now_ms;
+
+    timeStats.bldc_us = (1000*timeStats.bldc_cycles)/(timeStats.hclkFreq/1000);
+
+    // read last DMAed ADC values, moved from bldc interrupt to non interrupt.
+    readADCs();
 
     /////////////////////////////////////
     // proceesing starts after we hit 5ms interval
@@ -545,23 +594,12 @@ int main(void) {
         sensor_set_flash(0, 0);
       }
 
-      int rollhigh = 0;
-      for (int i = 0; i < 2; i++){
-        if  (ABS(sensor_data[i].complete.Roll) > 2000){
-          rollhigh = 1;
-        }
-        if  (ABS(sensor_data[i].complete.Angle) > 9000){
-          rollhigh = 1;
-        }
-      }
-
-
       // if roll is a large angle (>20 degrees)
       // then disable
       #ifdef CONTROL_SENSOR
         int setcolours = 1;
         if (sensor_control && FlashContent.HoverboardEnable){
-          if (rollhigh){
+          if ((!sensor_data[0].rollhigh) || (!sensor_data[1].rollhigh)){
             if (enable) {
               consoleLog("disable by rollHigh\r\n");
             }
@@ -878,20 +916,25 @@ int main(void) {
     ////////////////////////////////
     // take stats
     timeStats.now_us = HallGetuS();
+    timeStats.now_ms = HAL_GetTick();
     
     timeStats.main_interval_us = timeStats.now_us - timeStats.time_in_us;
+    timeStats.main_interval_ms = timeStats.now_ms - timeStats.time_in_ms;
     timeStats.main_delay_us = timeStats.processing_in_us - timeStats.time_in_us;
+    timeStats.main_delay_ms = timeStats.processing_in_ms - timeStats.time_in_ms;
     timeStats.main_processing_us = timeStats.now_us - timeStats.processing_in_us;
+    timeStats.main_processing_ms = timeStats.now_ms - timeStats.processing_in_ms;
+
     // maybe average main_dur as a stat?
     if (timeStats.main_interval_ms == 0){
       timeStats.main_interval_ms = ((float)timeStats.main_interval_us)/1000;
       timeStats.main_processing_ms = ((float)timeStats.main_processing_us)/1000.0;
     }
-    timeStats.main_interval_ms = timeStats.main_interval_ms * 0.99;
-    timeStats.main_interval_ms = timeStats.main_interval_ms + (((float)timeStats.main_interval_us)/1000.0)*0.01;
+    timeStats.f_main_interval_ms = timeStats.f_main_interval_ms * 0.99;
+    timeStats.f_main_interval_ms = timeStats.f_main_interval_ms + (((float)timeStats.main_interval_us)/1000.0)*0.01;
 
-    timeStats.main_processing_ms = timeStats.main_processing_ms * 0.99;
-    timeStats.main_processing_ms = timeStats.main_processing_ms + (((float)timeStats.main_processing_us)/1000.0)*0.01;
+    timeStats.f_main_processing_ms = timeStats.f_main_processing_ms * 0.99;
+    timeStats.f_main_processing_ms = timeStats.f_main_processing_ms + (((float)timeStats.main_processing_us)/1000.0)*0.01;
 
     // select next loop start point
     // move out '5ms' trigger on by 5ms
@@ -953,6 +996,15 @@ void check_power_button(){
         #endif
         }
         if ((power_button_info.button_held_ms > 10000) && 
+            (power_button_info.button_held_ms < 15000) )
+        {
+        #if defined CONTROL_SENSOR
+          // indicate with 4 flashes that we would turn USART2 into control
+          sensor_set_flash(0, 4);
+          sensor_set_flash(1, 4);
+        #endif
+        }
+        if ((power_button_info.button_held_ms > 15000) && 
             (power_button_info.button_held_ms < 100000) )
         {
         #if defined CONTROL_SENSOR
@@ -970,9 +1022,38 @@ void check_power_button(){
       // if this is a button release
       if (power_button_info.button_prev) {
         // power button held for < 100ms or > 10s -> nothing
-        if ((power_button_info.button_held_ms >= 10000) || (power_button_info.button_held_ms < 100))
+        if ((power_button_info.button_held_ms >= 15000) || (power_button_info.button_held_ms < 100))
         {
           // no action taken
+        }
+
+        // power button held for between 5s and 10s -> HB angle calibration
+        // (only if it had been released since startup)
+        if ((power_button_info.button_held_ms >= 10000) &&
+            (power_button_info.button_held_ms < 15000))
+        {
+          buzzerPattern = 0;
+          enable = 0;
+
+        #if defined CONTROL_SENSOR
+          // indicate we accepted calibrate command
+          sensor_set_flash(0, 8);
+          sensor_set_flash(1, 8);
+        #endif
+
+          // buz to indicate we are calibrating
+          for (int i = 0; i < 20; i++) {
+            buzzerFreq = i & 3;
+            HAL_Delay(100);
+          }
+
+        #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+          setUSART2ToControl();
+          consoleLog("*** Write Flash Calibration data\r\n");
+        #else
+          consoleLog("*** Not a hoverboard, not modifyiing USART2\r\n");
+        #endif
+
         }
 
         // power button held for between 5s and 10s -> HB angle calibration
@@ -1010,9 +1091,7 @@ void check_power_button(){
         // power button held for >100ms < 2s -> power off
         // (only if it had been released since startup)
         if ((power_button_info.button_held_ms >= 100) && 
-            (power_button_info.button_held_ms < 2000) && 
-            weakr == 0 && 
-            weakl == 0) {
+            (power_button_info.button_held_ms < 2000)) {
           enable = 0;
           //while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
           consoleLog("power off by button\r\n");
@@ -1078,4 +1157,10 @@ void SystemClock_Config(void) {
 
   /* SysTick_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
+
+  // enable the DWT counter for cycle timing
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
 }

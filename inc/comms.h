@@ -43,6 +43,8 @@ void setScopeChannel(uint8_t ch, int16_t val);
 void consoleScope();
 void consoleLog(char *message);
 
+extern int autoSensorBaud2;
+extern int autoSensorBaud3;
 /////////////////////////////////////////////////////////
 
 
