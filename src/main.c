@@ -46,7 +46,6 @@ extern TIM_HandleTypeDef htim_right;
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern volatile adc_buf_t adc_buffer;
-//LCD_PCF8574_HandleTypeDef lcd;
 extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart2;
 
@@ -58,14 +57,6 @@ int cmd3;
 // used if set in setup.c
 int autoSensorBaud2 = 0; // in USART2_IT_init
 int autoSensorBaud3 = 0; // in USART3_IT_init
-
-typedef struct{
-   int16_t steer;
-   int16_t speed;
-   //uint32_t crc;
-} Serialcommand;
-
-volatile Serialcommand command;
 
 int sensor_control = 0;
 
@@ -112,7 +103,7 @@ DEADRECKONER *deadreconer;
 INTEGER_XYT_POSN xytPosn;
 
 typedef struct tag_power_button_info {
-  int startup_button_held;      // indicates power button was active at startup 
+  int startup_button_held;      // indicates power button was active at startup
   int button_prev;              // last value of power button
   unsigned int button_held_ms;  // ms for which the button has been held down
 } POWER_BUTTON_INFO;
@@ -351,11 +342,6 @@ int main(void) {
     Nunchuck_Init();
   #endif
 
-  #ifdef CONTROL_SERIAL_USART2
-    UART_Control_Init();
-    HAL_UART_Receive_DMA(&huart2, (uint8_t *)&command, 4);
-  #endif
-
   #ifdef INCLUDE_PROTOCOL
 
     #ifdef SOFTWARE_SERIAL
@@ -407,27 +393,6 @@ int main(void) {
     int last_control_type = CONTROL_TYPE_NONE;
   #endif
 
-  #ifdef DEBUG_I2C_LCD
-    I2C_Init();
-    HAL_Delay(50);
-    lcd.pcf8574.PCF_I2C_ADDRESS = 0x27;
-      lcd.pcf8574.PCF_I2C_TIMEOUT = 5;
-      lcd.pcf8574.i2c = hi2c2;
-      lcd.NUMBER_OF_LINES = NUMBER_OF_LINES_2;
-      lcd.type = TYPE0;
-
-      if(LCD_Init(&lcd)!=LCD_OK){
-          // error occured
-          //TODO while(1);
-      }
-
-    LCD_ClearDisplay(&lcd);
-    HAL_Delay(5);
-    LCD_SetLocation(&lcd, 0, 0);
-    LCD_WriteString(&lcd, "Hover V2.0");
-    LCD_SetLocation(&lcd, 0, 1);
-    LCD_WriteString(&lcd, "Initializing...");
-  #endif
 
   float board_temp_adc_filtered = (float)adc_buffer.temp;
   float board_temp_deg_c;
@@ -559,13 +524,6 @@ int main(void) {
       // use ADCs as button inputs:
       button1 = (uint8_t)(adc_buffer.l_tx2 > 2000);  // ADC1
       button2 = (uint8_t)(adc_buffer.l_rx2 > 2000);  // ADC2
-
-      timeout = 0;
-    #endif
-
-    #ifdef CONTROL_SERIAL_USART2
-      cmd1 = CLAMP((int16_t)command.steer, -1000, 1000);
-      cmd2 = CLAMP((int16_t)command.speed, -1000, 1000);
 
       timeout = 0;
     #endif
@@ -917,7 +875,7 @@ int main(void) {
     // take stats
     timeStats.now_us = HallGetuS();
     timeStats.now_ms = HAL_GetTick();
-    
+
     timeStats.main_interval_us = timeStats.now_us - timeStats.time_in_us;
     timeStats.main_interval_ms = timeStats.now_ms - timeStats.time_in_ms;
     timeStats.main_delay_us = timeStats.processing_in_us - timeStats.time_in_us;
@@ -968,7 +926,7 @@ void check_power_button(){
       } else {
         // button remains pressed
         // indicate how long it has been pressed by colour
-        if ((power_button_info.button_held_ms > 100) && 
+        if ((power_button_info.button_held_ms > 100) &&
             (power_button_info.button_held_ms < 2000) )
         {
         #if defined CONTROL_SENSOR
@@ -977,7 +935,7 @@ void check_power_button(){
           sensor_set_flash(1, 1);
         #endif
         }
-        if ((power_button_info.button_held_ms >= 2000) && 
+        if ((power_button_info.button_held_ms >= 2000) &&
             (power_button_info.button_held_ms < 5000) )
         {
         #if defined CONTROL_SENSOR
@@ -986,7 +944,7 @@ void check_power_button(){
           sensor_set_flash(1, 2);
         #endif
         }
-        if ((power_button_info.button_held_ms > 5000) && 
+        if ((power_button_info.button_held_ms > 5000) &&
             (power_button_info.button_held_ms < 10000) )
         {
         #if defined CONTROL_SENSOR
@@ -995,7 +953,7 @@ void check_power_button(){
           sensor_set_flash(1, 3);
         #endif
         }
-        if ((power_button_info.button_held_ms > 10000) && 
+        if ((power_button_info.button_held_ms > 10000) &&
             (power_button_info.button_held_ms < 15000) )
         {
         #if defined CONTROL_SENSOR
@@ -1004,7 +962,7 @@ void check_power_button(){
           sensor_set_flash(1, 4);
         #endif
         }
-        if ((power_button_info.button_held_ms > 15000) && 
+        if ((power_button_info.button_held_ms > 15000) &&
             (power_button_info.button_held_ms < 100000) )
         {
         #if defined CONTROL_SENSOR
@@ -1090,14 +1048,14 @@ void check_power_button(){
 
         // power button held for >100ms < 2s -> power off
         // (only if it had been released since startup)
-        if ((power_button_info.button_held_ms >= 100) && 
+        if ((power_button_info.button_held_ms >= 100) &&
             (power_button_info.button_held_ms < 2000)) {
           enable = 0;
           //while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
           consoleLog("power off by button\r\n");
           poweroff();
         }
-        
+
         // always stop flash after done/released regardless
       #if defined CONTROL_SENSOR
         sensor_set_flash(0, 0);
