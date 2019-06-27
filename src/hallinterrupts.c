@@ -22,6 +22,7 @@
 #include "config.h"
 #include "hallinterrupts.h"
 #include <string.h>
+#include "control_structures.h"
 
 #ifdef HALL_INTERRUPTS
 

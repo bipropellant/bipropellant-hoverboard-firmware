@@ -1,14 +1,6 @@
 #pragma once
 
 
-#pragma pack(push, 4)  // since on 'long' are used, alignment can be optimized for 4 bytes
-typedef struct INTEGER_XYT_POSN_tag {
-    long x;
-    long y;
-    long degrees;
-} INTEGER_XYT_POSN;
-#pragma pack(pop)
-
 typedef struct DeadReckoner_tag {
 	volatile long *leftTicks, *rightTicks; // Number of total wheel encoder tick counts for left and right wheels.
 	long leftTicksPrev, rightTicksPrev; // Number of total wheel encoder tick counts at time computeAngularVelocities() is called.

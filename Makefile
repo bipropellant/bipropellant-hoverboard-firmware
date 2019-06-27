@@ -43,15 +43,17 @@ src/bldc.c \
 src/comms.c \
 src/sensorcoms.c \
 src/softwareserial.c \
-src/hbprotocol/protocol.c \
 src/hallinterrupts.c \
 src/flasharea.c \
 src/flashaccess.c \
 src/stm32f1xx_it.c \
 src/pid.c \
 src/deadreckoner.c \
+src/hbprotocol/protocol.c \
 src/hbprotocol/machine_protocol.c \
 src/hbprotocol/ascii_protocol.c \
+src/ascii_proto_funcs.c \
+src/protocolfunctions.c \
 src/BLDC_controller_data.c \
 src/BLDC_controller.c
 

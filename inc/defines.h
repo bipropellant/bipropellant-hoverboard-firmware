@@ -166,7 +166,7 @@ typedef struct {
 #define MAX_ADC_BUFFERS 10
 typedef struct tag_ADCBUFFERS {
   adc_buf_t buffers[MAX_ADC_BUFFERS];
-  int adcBufferHead;  
+  int adcBufferHead;
   int adcBufferTail;
 
   int offsetrl1;

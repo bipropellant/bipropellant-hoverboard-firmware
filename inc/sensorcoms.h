@@ -19,7 +19,8 @@
 #pragma once
 
 #include "config.h"
-
+//#include "protocol.h"
+#include "control_structures.h"
 /////////////////////////////////////////////////////////////////////////////////////
 // this file encapsulates coms with the original sensor boards
 // these use the 9 bit USART mode, sending 0x100 to signal the start of a comms frame
@@ -43,15 +44,6 @@ void USART_sensor_IRQ(int port, USART_TypeDef *us);
 // bytes sent from sensor board
 #pragma pack(push, 1)
 // note: moved header to top, and then fill from 0x100
-typedef struct tag_sensor_frame{
-  unsigned char header_00; // this byte gets 0x100 (9 bit serial)
-  short Angle;
-  short Angle_duplicate;
-  unsigned char AA_55;
-  unsigned char Accelleration;
-  unsigned char Accelleration_duplicate;
-  short Roll;
-} SENSOR_FRAME;
 
 #define MAX_SENSOR_WORDS 20
 #define MIN_SENSOR_WORDS 6

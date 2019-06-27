@@ -26,7 +26,7 @@
 #include "comms.h"
 #include "sensorcoms.h"
 #include "flashaccess.h"
-#include "protocol.h"
+#include "protocolfunctions.h"
 #include "bldc.h"
 #include "hallinterrupts.h"
 #include "softwareserial.h"
@@ -35,6 +35,7 @@
 #include "flashcontent.h"
 
 #include "deadreckoner.h"
+#include "control_structures.h"
 
 #include <string.h>
 void BldcController_Init();
@@ -59,6 +60,11 @@ int autoSensorBaud2 = 0; // in USART2_IT_init
 int autoSensorBaud3 = 0; // in USART3_IT_init
 
 int sensor_control = 0;
+
+
+
+// the main thing qwhich determines how we are controlled from protocol
+int control_type = CONTROL_TYPE_NONE;
 
 #ifdef READ_SENSOR
 SENSOR_DATA last_sensor_data[2];
@@ -342,56 +348,12 @@ int main(void) {
     Nunchuck_Init();
   #endif
 
-  #ifdef INCLUDE_PROTOCOL
 
-    #ifdef SOFTWARE_SERIAL
 
-      PROTOCOL_STAT sSoftwareSerial;
+  // sets up serial ports, and enables protocol on selected ports
+  setup_protocol();
 
-      if(protocol_init(&sSoftwareSerial) != 0) consoleLog("Protocol Init failed\r\n");
-
-      sSoftwareSerial.send_serial_data=softwareserial_Send;
-      sSoftwareSerial.send_serial_data_wait=softwareserial_Send_Wait;
-      sSoftwareSerial.timeout1 = 500;
-      sSoftwareSerial.timeout2 = 100;
-      sSoftwareSerial.allow_ascii = 1;
-
-    #endif
-
-    #if defined(SERIAL_USART2_IT)
-
-      extern int USART2_IT_send(unsigned char *data, int len);
-
-      PROTOCOL_STAT sUSART2;
-
-      if(protocol_init(&sUSART2) != 0) consoleLog("Protocol Init failed\r\n");
-
-      sUSART2.send_serial_data=USART2_IT_send;
-      sUSART2.send_serial_data_wait=USART2_IT_send;
-      sUSART2.timeout1 = 500;
-      sUSART2.timeout2 = 100;
-      sUSART2.allow_ascii = 1;
-
-    #endif
-
-    #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
-
-      extern int USART3_IT_send(unsigned char *data, int len);
-
-      PROTOCOL_STAT sUSART3;
-
-      if(protocol_init(&sUSART3) != 0) consoleLog("Protocol Init failed\r\n");
-
-      sUSART3.send_serial_data=USART3_IT_send;
-      sUSART3.send_serial_data_wait=USART3_IT_send;
-      sUSART3.timeout1 = 500;
-      sUSART3.timeout2 = 100;
-      sUSART3.allow_ascii = 1;
-
-    #endif
-
-    int last_control_type = CONTROL_TYPE_NONE;
-  #endif
+  int last_control_type = CONTROL_TYPE_NONE;
 
 
   float board_temp_adc_filtered = (float)adc_buffer.temp;
