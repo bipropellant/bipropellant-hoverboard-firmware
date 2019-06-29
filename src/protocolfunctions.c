@@ -33,7 +33,7 @@
     PROTOCOL_STAT sUSART3;
 #endif
 
-extern volatile uint32_t timeout; // global variable for timeout
+extern volatile uint32_t input_timeout_counter; // global variable for input timeout
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +120,7 @@ void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigne
     switch (fn_type) {
         case FN_TYPE_PRE_WRITE:
             control_type = CONTROL_TYPE_SPEED;
-            timeout = 0;
+            input_timeout_counter = 0;
             break;
     }
 }
@@ -164,7 +164,7 @@ void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsi
             }
 
             enable = 1;
-            timeout = 0;
+            input_timeout_counter = 0;
 
             // increment our wanted position
             PosnData.wanted_posn_mm[0] += ((POSN_INCR*) (param->ptr))->Left;
@@ -256,7 +256,7 @@ void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned 
         case FN_TYPE_PRE_READRESPONSE:
         case FN_TYPE_PRE_WRITE:
             control_type = CONTROL_TYPE_PWM;
-            timeout = 0;
+            input_timeout_counter = 0;
             break;
 
         case FN_TYPE_POST_READRESPONSE:

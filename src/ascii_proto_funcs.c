@@ -76,7 +76,7 @@ extern void change_PID_constants();
 #endif
 
 extern uint8_t enable; // global variable for motor enable
-extern volatile uint32_t timeout; // global variable for timeout
+extern volatile uint32_t input_timeout_counter; // global variable for input_timeout
 extern int dspeeds[2];
 extern int pwms[2];
 
@@ -118,7 +118,7 @@ int immediate_dir(PROTOCOL_STAT *s, char byte, char *ascii_out) {
         case 'w':
             if (!enable) { speedB = 0; steerB = 0; }
             enable = 1;
-            timeout = 0;
+            input_timeout_counter = 0;
 
             switch (control_type){
 #ifdef FLASH_STORAGE
@@ -152,7 +152,7 @@ int immediate_dir(PROTOCOL_STAT *s, char byte, char *ascii_out) {
         case 'd':
             if (!enable) { speedB = 0; steerB = 0; }
             enable = 1;
-            timeout = 0;
+            input_timeout_counter = 0;
             switch (control_type){
 #ifdef FLASH_STORAGE
                 case CONTROL_TYPE_POSITION:

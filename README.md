@@ -42,6 +42,9 @@ Implements a flash page available for efficitent storage of parameters (currentl
 
 *Should work with original control settings (in config.h), but not tested...*
 
+### ADC inputs
+Multiple inputs like Joystick, speed throttle and Gametrak can be easily configured. Check out the [wiki](https://github.com/bipropellant/bipropellant-hoverboard-firmware/wiki/ADC-Configurations)
+
 # Hardware
 ![Motherboard](.github/pinout.png)
 

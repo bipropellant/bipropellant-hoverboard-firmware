@@ -62,7 +62,7 @@ extern volatile int speed;
 
 extern volatile adc_buf_t adc_buffer;
 
-extern volatile uint32_t timeout;
+extern volatile uint32_t input_timeout_counter;
 extern uint8_t disablepoweroff;
 
 uint32_t buzzerFreq = 0;
@@ -232,11 +232,11 @@ void DMA1_Channel1_IRQHandler() {
 
   if (doLeft) {
     volatile MOTOR_ELECTRICAL *m = &electrical_measurements.motors[1];
-#ifndef MINIMUMCODE    
+#ifndef MINIMUMCODE
     bldc_count_per_hall_counter[0]++;
 #endif
     //disable PWM when current limit is reached (current chopping)
-    if(timeout > TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
+    if(input_timeout_counter > INPUT_TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
       LEFT_TIM->BDTR &= ~TIM_BDTR_MOE;
       //HAL_GPIO_WritePin(LED_PORT, LED_PIN, 1);
     } else {
@@ -248,7 +248,7 @@ void DMA1_Channel1_IRQHandler() {
     if(abs_dc > electrical_measurements.dc_adc_limit) {
       if (m->pwm_limiter > BLDC_LIMITER_DECREMENT) {
         m->pwm_limiter -= BLDC_LIMITER_DECREMENT;
-#ifndef MINIMUMCODE    
+#ifndef MINIMUMCODE
         m->limiter_count++;
 #endif
       }
@@ -260,7 +260,7 @@ void DMA1_Channel1_IRQHandler() {
 
     // multiply by 1024 with shift.  divide by 0-1024 according to limiter
     int pwm_mod = (m->pwm_limiter*pwml) >> 10;
-#ifndef MINIMUMCODE    
+#ifndef MINIMUMCODE
     m->pwm_requested = pwml;
     m->pwm_actual = pwm_mod;
 #endif
@@ -305,11 +305,11 @@ void DMA1_Channel1_IRQHandler() {
 
   if (doRight) {
     volatile MOTOR_ELECTRICAL *m = &electrical_measurements.motors[1];
-    
-#ifndef MINIMUMCODE    
+
+#ifndef MINIMUMCODE
     bldc_count_per_hall_counter[1]++;
 #endif
-    if(timeout > TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
+    if(input_timeout_counter > INPUT_TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
       RIGHT_TIM->BDTR &= ~TIM_BDTR_MOE;
     } else {
       RIGHT_TIM->BDTR |= TIM_BDTR_MOE;
@@ -319,7 +319,7 @@ void DMA1_Channel1_IRQHandler() {
     if(abs_dc > electrical_measurements.dc_adc_limit) {
       if (m->pwm_limiter > BLDC_LIMITER_DECREMENT) {
         m->pwm_limiter -= BLDC_LIMITER_DECREMENT;
-#ifndef MINIMUMCODE    
+#ifndef MINIMUMCODE
         m->limiter_count++;
 #endif
       }
@@ -328,11 +328,11 @@ void DMA1_Channel1_IRQHandler() {
         m->pwm_limiter++;
       }
     }
-     
+
 
     // multiply by 1024 with shift.  divide by 0-1024 according to limiter
     int pwm_mod = (m->pwm_limiter*pwmr) >> 10;
-#ifndef MINIMUMCODE    
+#ifndef MINIMUMCODE
     m->pwm_actual = pwm_mod;
     m->pwm_requested = pwmr;
 #endif
@@ -380,7 +380,7 @@ void DMA1_Channel1_IRQHandler() {
     time_out += 0x80000000;
     time_in += 0x80000000;
   }
-#ifndef MINIMUMCODE    
+#ifndef MINIMUMCODE
   unsigned short time_out_100k = h_timer_hall.Instance->CNT;
   if (time_out_100k < time_in_100k) {
     time_out_100k += 0x8000;

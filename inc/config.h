@@ -121,7 +121,7 @@
   #define USART3_BAUD_SENSE 0
 #endif
 
-// used when USART2 is enabled by power buutton as a protocol port.
+// used when USART2 is enabled by power button as a protocol port.
 #ifndef USART2PROTOCOLBAUD
   #define USART2PROTOCOLBAUD 9600
 #endif
@@ -136,20 +136,20 @@
 #ifndef SOFTWARE_SERIAL_RX_PORT
   #define SOFTWARE_SERIAL_RX_PORT GPIOB
 #endif
-#ifndef   SOFTWARE_SERIAL_TX_PIN  
+#ifndef   SOFTWARE_SERIAL_TX_PIN
   #define SOFTWARE_SERIAL_TX_PIN GPIO_PIN_9
 #endif
-#ifndef   SOFTWARE_SERIAL_TX_PORT  
+#ifndef   SOFTWARE_SERIAL_TX_PORT
   #define SOFTWARE_SERIAL_TX_PORT GPIOC
 #endif
 #ifndef FLASH_DEFAULT_HOVERBOARD_ENABLE
   #define FLASH_DEFAULT_HOVERBOARD_ENABLE 1
 #endif
 #ifndef USART2_BAUD
-  #define USART2_BAUD 26315        
+  #define USART2_BAUD 26315
 #endif
 #ifndef USART3_BAUD
-  #define USART3_BAUD 26315        
+  #define USART3_BAUD 26315
 #endif
 #ifndef SERIAL_USART_IT_BUFFERTYPE
   #define SERIAL_USART_IT_BUFFERTYPE unsigned short
@@ -176,10 +176,10 @@
 #endif
 #ifndef DELAY_IN_MAIN_LOOP
   #define DELAY_IN_MAIN_LOOP 5        // in ms. default 5. it is independent of all the timing critical stuff. do not touch if you do not know what you are doing.
-#endif 
+#endif
 
-#ifndef TIMEOUT
-  #define TIMEOUT          5          // number of wrong / missing input commands before emergency off
+#ifndef INPUT_TIMEOUT
+  #define INPUT_TIMEOUT    30         // number of wrong / missing input commands before wheels are disabled
 #endif
 // ############################### GENERAL ###############################
 
@@ -204,7 +204,7 @@
 // Battery voltage calibration: connect power source. see <How to calibrate>. write value nr 5 to BAT_CALIB_ADC. make and flash firmware. then you can verify voltage on value 6 (devide it by 100.0 to get calibrated voltage).
 #ifndef BAT_CALIB_REAL_VOLTAGE
   #define BAT_CALIB_REAL_VOLTAGE        43.0       // input voltage measured by multimeter
-#endif 
+#endif
 #ifndef BAT_CALIB_ADC
   #define BAT_CALIB_ADC                 1704       // adc-value measured by mainboard (value nr 4 on UART debug output)
 #endif
@@ -226,7 +226,7 @@
 #ifndef BAT_LOW_LVL2
   #define BAT_LOW_LVL2            3.5       // your battery is almost empty. Charge now! [V/cell]
 #endif
-#ifndef BAT_LOW_DEAD  
+#ifndef BAT_LOW_DEAD
   #define BAT_LOW_DEAD            3.37      // undervoltage poweroff. (while not driving) [V/cell]
 #endif
 
@@ -278,13 +278,77 @@
 //#define CONTROL_PPM                 // use PPM-Sum as input. disable DEBUG_SERIAL_USART2!
 //#define PPM_NUM_CHANNELS 6          // total number of PPM channels to receive, even if they are not used.
 
+
 // ###### CONTROL VIA TWO POTENTIOMETERS ######
 // ADC-calibration to cover the full poti-range: connect potis to left sensor board cable (0 to 3.3V) (do NOT use the red 15V wire in the cable!). see <How to calibrate>. turn the potis to minimum position, write value 1 to ADC1_MIN and value 2 to ADC2_MIN. turn to maximum position and repeat it for ADC?_MAX. make, flash and test it.
-//#define CONTROL_ADC                 // use ADC as input. disable DEBUG_SERIAL_USART2!
-#define ADC1_MIN 0                  // min ADC1-value while poti at minimum-position (0 - 4095)
-#define ADC1_MAX 4095               // max ADC1-value while poti at maximum-position (0 - 4095)
-#define ADC2_MIN 0                  // min ADC2-value while poti at minimum-position (0 - 4095)
-#define ADC2_MAX 4095               // max ADC2-value while poti at maximum-position (0 - 4095)
+// Check out https://github.com/bipropellant/bipropellant-hoverboard-firmware/wiki/ADC-Configurations for sample configurations.
+
+//#define CONTROL_ADC               // use ADC as input. disable DEBUG_SERIAL_USART2!
+#ifndef ADC1_MIN
+  #define ADC1_MIN         0        // min ADC1-value while poti at minimum-position (0 - 4095)
+#endif
+
+#ifndef ADC1_ZERO
+  #define ADC1_ZERO     1500        // ADC1-value while poti at zero-position (0 - 4095)
+#endif
+
+#ifndef ADC1_MAX
+  #define ADC1_MAX      4095        // max ADC1-value while poti at maximum-position (0 - 4095)
+#endif
+
+#ifndef ADC1_MULT_NEG
+  #define ADC1_MULT_NEG  500.0f     // Use 1000.0f to calibrate from MIN to MAX
+#endif
+
+#ifndef ADC1_MULT_POS
+  #define ADC1_MULT_POS 1500.0f     // Use 1000.0f to calibrate from MIN to MAX
+#endif
+
+
+#ifndef ADC2_MIN
+  #define ADC2_MIN         0        // min ADC2-value while poti at minimum-position (0 - 4095)
+#endif
+
+#ifndef ADC2_ZERO
+  #define ADC2_ZERO     2000        // ADC2-value while poti at zero-position (0 - 4095)
+#endif
+
+#ifndef ADC2_MAX
+  #define ADC2_MAX      4095        // max ADC2-value while poti at maximum-position (0 - 4095)
+#endif
+
+#ifndef ADC2_MULT_NEG
+  #define ADC2_MULT_NEG  300.0f     // Use 1000.0f to calibrate from MIN to MAX
+#endif
+
+#ifndef ADC2_MULT_POS
+  #define ADC2_MULT_POS  300.0f     // Use 1000.0f to calibrate from MIN to MAX
+#endif
+
+
+#ifndef ADC_OFF_START
+  #define ADC_OFF_START    0          // Start Value of Area at which other inputs can be active (0 - 4095) Applies to Speed ADC
+#endif
+
+#ifndef ADC_OFF_END
+  #define ADC_OFF_END   1000          // End Value of Area at which other inputs can be active (0 - 4095) Applies to Speed ADC
+#endif
+
+#ifndef ADC_OFF_FILTER
+  #define ADC_OFF_FILTER 1.0          // Additional low pass Filter applied only to ADC Off functionality. 1.0=No Filter, 0.1 lots of Filtering
+#endif
+
+#ifndef ADC_SWITCH_CHANNELS
+  #define ADC_SWITCH_CHANNELS 1       // define if ADC1 is used for Steer and ADC2 for Speed
+#endif
+
+#ifndef ADC_REVERSE_STEER
+  #define ADC_REVERSE_STEER 1         // define if ADC1 is used for Steer and ADC2 for Speed
+#endif
+
+#ifndef ADC_TANKMODE
+  #define ADC_TANKMODE 0              // define if each input should control one wheel
+#endif
 
 // ###### CONTROL VIA NINTENDO NUNCHUCK ######
 // left sensor board cable. keep cable short, use shielded cable, use ferrits, stabalize voltage in nunchuck, use the right one of the 2 types of nunchucks, add i2c pullups. use original nunchuck. most clones does not work very well.
@@ -330,29 +394,17 @@
   #define STEER_COEFFICIENT   0.5  // higher value == stronger. if you do not want any steering, set it to 0.0; 0.0 to 1.0
 #endif
 #ifndef INVERT_R_DIRECTION
-  #define INVERT_R_DIRECTION
+  #define INVERT_R_DIRECTION  1
 #endif
 #ifndef INVERT_L_DIRECTION
-  #define INVERT_L_DIRECTION
+  #define INVERT_L_DIRECTION  1
+#endif
+#ifndef SWITCH_WHEELS
+  #define SWITCH_WHEELS       0    // switch right and left wheel. Watch out, you probably also need to invert directions.
 #endif
 #ifndef BEEPS_BACKWARD
   #define BEEPS_BACKWARD 0    // 0 or 1
 #endif
-
-//Turbo boost at high speeds while button1 is pressed:
-//#define ADDITIONAL_CODE if (button1 && speedR > 700) { /* field weakening at high speeds */   weakl = cmd1 - 700; /* weak should never exceed 400 or 450 MAX!! */   weakr = cmd1 - 700; } else {   weakl = 0;   weakr = 0; }
-
-// ###### SIMPLE BOBBYCAR ######
-// for better bobbycar code see: https://github.com/larsmm/hoverboard-firmware-hack-bbcar
-// #define FILTER              0.1
-// #define SPEED_COEFFICIENT   -1
-// #define STEER_COEFFICIENT   0
-
-
-// ###### ARMCHAIR ######
-// #define FILTER              0.05
-// #define SPEED_COEFFICIENT   0.5
-// #define STEER_COEFFICIENT   -0.2
 
 
 #if (INCLUDE_PROTOCOL == NO_PROTOCOL)
@@ -364,15 +416,86 @@
 
 // ############################### VALIDATE SETTINGS ###############################
 
-#if defined DEBUG_SERIAL_USART3 && defined CONTROL_NUNCHUCK
-  #error CONTROL_NUNCHUCK and DEBUG_SERIAL_USART3 not allowed. it is on the same cable.
+#if defined(DEBUG_SERIAL_USART2) && defined(DEBUG_SERIAL_USART3)
+  #error DEBUG_SERIAL_USART2 and DEBUG_SERIAL_USART3 not allowed, choose one.
 #endif
 
-#if defined DEBUG_SERIAL_USART3 && defined CONTROL_SENSOR
-  #error DEBUG_SERIAL_USART3 and CONTROL_SENSOR not allowed. it is on the same cable.
+#if defined(DEBUG_SERIAL_USART2)
+  #ifdef SENSOR_BOARD_CABLE_LEFT_IN_USE
+    #error SERIAL_USART2 not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_LEFT_IN_USE
+  #endif
+#endif
+
+#if defined(CONTROL_ADC)
+  #ifdef SENSOR_BOARD_CABLE_LEFT_IN_USE
+    #error CONTROL_ADC not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_LEFT_IN_USE
+  #endif
+#endif
+
+#if defined(CONTROL_PPM)
+  #ifdef SENSOR_BOARD_CABLE_LEFT_IN_USE
+    #error CONTROL_PPM not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_LEFT_IN_USE
+  #endif
+  #ifdef CONTROL_METHOD_DEFINED
+    #error CONTROL_PPM not allowed, another control Method is already defined.
+  #else
+    #define CONTROL_METHOD_DEFINED
+  #endif
 #endif
 
 
-#if defined CONTROL_PPM && defined CONTROL_ADC && defined CONTROL_NUNCHUCK || defined CONTROL_PPM && defined CONTROL_ADC || defined CONTROL_ADC && defined CONTROL_NUNCHUCK || defined CONTROL_PPM && defined CONTROL_NUNCHUCK
-  #error only 1 input method allowed. use CONTROL_PPM or CONTROL_ADC or CONTROL_NUNCHUCK.
+#if defined(DEBUG_SERIAL_USART3)
+  #ifdef SENSOR_BOARD_CABLE_RIGHT_IN_USE
+    #error SERIAL_USART3 not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_RIGHT_IN_USE
+  #endif
+#endif
+
+
+#if defined(CONTROL_NUNCHUCK)
+  #ifdef SENSOR_BOARD_CABLE_RIGHT_IN_USE
+    #error CONTROL_NUNCHUCK not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_RIGHT_IN_USE
+  #endif
+  #ifdef CONTROL_METHOD_DEFINED
+    #error CONTROL_NUNCHUCK not allowed, another control Method is already defined.
+  #else
+    #define CONTROL_METHOD_DEFINED
+  #endif
+#endif
+
+#if defined(INCLUDE_PROTOCOL)
+  #ifdef CONTROL_METHOD_DEFINED
+    #error INCLUDE_PROTOCOL not allowed, another control Method is already defined.
+  #else
+    #define CONTROL_METHOD_DEFINED
+  #endif
+#endif
+
+#if defined(SERIAL_USART2_IT)
+  #ifdef SENSOR_BOARD_CABLE_LEFT_IN_USE
+    #error SERIAL_USART2_IT not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_LEFT_IN_USE
+  #endif
+#endif
+
+#if defined(SERIAL_USART3_IT)
+  #ifdef SENSOR_BOARD_CABLE_RIGHT_IN_USE
+    #error SERIAL_USART3_IT not allowed, cable already in use.
+  #else
+    #define SENSOR_BOARD_CABLE_RIGHT_IN_USE
+  #endif
+#endif
+
+#if defined(INCLUDE_PROTOCOL) && !(defined(SERIAL_USART2_IT) || defined(SERIAL_USART3_IT) || defined(SOFTWARE_SERIAL) )
+  #error Either SERIAL_USART2_IT, SERIAL_USART3_IT or SOFTWARE_SERIAL has to be selected when using INCLUDE_PROTOCOL.
 #endif
