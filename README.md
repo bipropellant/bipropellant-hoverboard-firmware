@@ -31,6 +31,52 @@ Protocol.c implements a [simple ASCII serial protocol](https://github.com/biprop
 ### Serial Machine control:
 Protocol.c implements the bones of an acked/checksummed serial protocol.  Embryonic as yet, but intended to be a generic control protocol for the hoverboard.
 
+Sample C++ code to send pwm and steer:
+
+` setHoverboardPWM(300,-300); // sends 300 (=30% duty cycle forward) to one wheel and -300 (=30% duty cycle backwards) to the other `
+```
+
+typedef struct MsgToHoverboard_t{
+  unsigned char SOM;  // Start of Message
+  unsigned char CI;   // continuity counter
+  unsigned char len;  // len is len of bytes to follow, NOT including CS
+  unsigned char cmd;  // read or write
+  unsigned char code; // code of value to write
+  int32_t pwm1;           // absolute value ranging from -1000 to 1000 .. Duty Cycle *10 for first wheel
+  int32_t pwm2;           // absolute value ranging from -1000 to 1000 .. Duty Cycle *10 for second wheel
+  unsigned char CS;   // checksumm
+};
+
+typedef union UART_Packet_t{
+  MsgToHoverboard_t msgToHover;
+  byte UART_Packet[sizeof(MsgToHoverboard_t)];
+};
+
+char hoverboardCI = 0;  // Global variable which tracks CI
+
+void setHoverboardPWM( int32_t pwm1, int32_t pwm2 )
+{
+  UART_Packet_t ups;
+
+  ups.msgToHover.SOM = 4 ;    // Start of Message, 4 for No ACKs;
+  ups.msgToHover.CI = ++hoverboardCI; // Message Continuity Indicator. Subsequent Messages with the same CI are discarded, need to be incremented.
+  ups.msgToHover.len = 1 + 1 + 4 + 4 ; // cmd(1), code(1), pwm1(4) and pwm2(4)
+  ups.msgToHover.cmd  = 'r';  // Pretend to send answer to read request. This way HB will not reply. Change to 'W' to get confirmation from board
+  ups.msgToHover.code = 0x0E; // "simpler PWM"
+  ups.msgToHover.pwm1 = pwm1;
+  ups.msgToHover.pwm2 = pwm2;
+  ups.msgToHover.CS = 0;
+
+  for (int i = 0; i < (2 + ups.msgToHover.len); i++){  // Calculate checksum. 2 more for CI and len.
+    ups.msgToHover.CS -= ups.UART_Packet[i+1];
+  }
+
+  Serial.write(ups.UART_Packet,sizeof(UART_Packet_t));
+}
+```
+This code is only able to write values to the board, replies can not be parsed. For more information check the [hoverboard protocol wiki](https://github.com/bipropellant/bipropellant-protocol/wiki) and [examples](https://github.com/bipropellant/bipropellant-protocol/tree/master/examples).
+A C++ module which can communicate in both directions can be found at https://github.com/p-h-a-i-l/HoverboardAPI.
+
 ### PID Control:
 PID control loops for control of Speed (in mm/sec) and Position (in mm).  Currently separate control modes, and parameter need better tuning.
 
