@@ -123,7 +123,7 @@ void BldcController_Init(){
   rtP.cf_speedCoef        = (int) coef;
   // base these on 8khz needing 80/70
   rtP.n_commDeacvHi       = BldcControllerParams.commDeacvHi*BldcControllerParams.callFrequency/8000;
-  rtP.n_commAcvLo         = BldcControllerParams.commDeacvHi*BldcControllerParams.callFrequency/8000;
+  rtP.n_commAcvLo         = BldcControllerParams.commAcvLo*BldcControllerParams.callFrequency/8000;
 
 
   char tmp[256];
