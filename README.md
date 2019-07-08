@@ -75,7 +75,7 @@ void setHoverboardPWM( int32_t pwm1, int32_t pwm2 )
 }
 ```
 This code is only able to write values to the board, replies can not be parsed. For more information check the [hoverboard protocol wiki](https://github.com/bipropellant/bipropellant-protocol/wiki) and [examples](https://github.com/bipropellant/bipropellant-protocol/tree/master/examples).
-A C++ module which can communicate in both directions can be found at https://github.com/p-h-a-i-l/HoverboardAPI.
+An Arduino compatible C++ module which can communicate in both directions can be found at [bipropellant-hoverboard-api](https://github.com/bipropellant/bipropellant-hoverboard-api).
 
 ### PID Control:
 PID control loops for control of Speed (in mm/sec) and Position (in mm).  Currently separate control modes, and parameter need better tuning.
