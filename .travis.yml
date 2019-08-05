@@ -43,44 +43,8 @@ matrix:
       - export PATH=$HOME/arm-gcc-toolchain/bin:$PATH
       before_script: arm-none-eabi-gcc --version
 
-    - name: pio hoverboard
-      script: platformio run -e hoverboard
-      language: python
-      python:
-        - "2.7"
-      install:
-      - pip install -U platformio
-      - platformio update
-      cache:
-      - directories: "~/.platformio"
-
-
-    - name: pio control_softwareserial
-      script: platformio run -e control_softwareserial
-      language: python
-      python:
-        - "2.7"
-      install:
-      - pip install -U platformio
-      - platformio update
-      cache:
-      - directories: "~/.platformio"
-
-
-    - name: pio control_usart2
-      script: platformio run -e control_usart2
-      language: python
-      python:
-        - "2.7"
-      install:
-      - pip install -U platformio
-      - platformio update
-      cache:
-      - directories: "~/.platformio"
-
-
-    - name: pio control_usart3
-      script: platformio run -e control_usart3
+    - name: platformio
+      script: platformio run -e hoverboard -e hoverboard_6word -e control_softwareserial -e control_usart2 -e control_usart3 -e control_usart3_ADC
       language: python
       python:
         - "2.7"
