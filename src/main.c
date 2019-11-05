@@ -50,7 +50,7 @@ extern volatile adc_buf_t adc_buffer;
 extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart2;
 
-extern volatile long long bldc_counter;
+extern volatile int64_t bldc_counter;
 int cmd1, cmd1_ADC, adcrFiltered;  // normalized input values. -1000 to 1000
 int cmd2, cmd2_ADC, adctFiltered;
 
@@ -382,9 +382,9 @@ int main(void) {
   timeStats.start_processing_us = timeStats.now_us + timeStats.nominal_delay_us;
   timeStats.start_processing_ms = timeStats.now_ms + DELAY_IN_MAIN_LOOP;
 
-  long long start_bldc_counter = bldc_counter;
+  int64_t start_bldc_counter = bldc_counter;
   HAL_Delay(200);
-  long long bldc_counter_200ms = bldc_counter;
+  int64_t bldc_counter_200ms = bldc_counter;
 
   int bldc_in_200ms = (int)(bldc_counter_200ms - start_bldc_counter);
   timeStats.bldc_freq = bldc_in_200ms * 5;

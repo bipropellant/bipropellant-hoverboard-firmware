@@ -1,9 +1,11 @@
 #pragma once
 
+#include <stdint.h>
+
 
 typedef struct DeadReckoner_tag {
-	volatile long *leftTicks, *rightTicks; // Number of total wheel encoder tick counts for left and right wheels.
-	long leftTicksPrev, rightTicksPrev; // Number of total wheel encoder tick counts at time computeAngularVelocities() is called.
+	volatile int32_t *leftTicks, *rightTicks; // Number of total wheel encoder tick counts for left and right wheels.
+	int32_t leftTicksPrev, rightTicksPrev; // Number of total wheel encoder tick counts at time computeAngularVelocities() is called.
 	double xc, yc; // Latest position coordinates in ticks.
 	double wl, wr; // Latest left and right angular velocity of the wheels in radians per second.
 	double ticksPerRev; // Number of tick registers per second of the encoder.
@@ -12,19 +14,19 @@ typedef struct DeadReckoner_tag {
 	double radius; // Radius of the wheel.
 	double theta;
 	double toRadPerSec; // ticks/microsecond to rad/s conversion factor
-	unsigned long prevIntegrationTime;
-	unsigned long prevWheelComputeTime;
+	uint32_t prevIntegrationTime;
+	uint32_t prevWheelComputeTime;
 	int leftOmegaDirection;
 	int rightOmegaDirection;
-	unsigned long dt_omega;
-	unsigned long dt_integration;
+	uint32_t dt_omega;
+	uint32_t dt_integration;
     int useDegrees; // indicate to pass theta in degrees
 } DEADRECKONER;
 
 // create an instance
 DEADRECKONER *DeadReckoner(
-    volatile long *pLeftTicks,
-    volatile long *pRightTicks,
+    volatile int32_t *pLeftTicks,
+    volatile int32_t *pRightTicks,
     double ticksPerRev,
     double wheelDiameter,
     double wheelBase,

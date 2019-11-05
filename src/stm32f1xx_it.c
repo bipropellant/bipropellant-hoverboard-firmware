@@ -278,14 +278,14 @@ void EXTI4_IRQHandler(void)
 // actual IRQ for LEFT pins 5,6,7
 void EXTI9_5_IRQHandler(void)
 {
-  unsigned long triggered = 0;
+  uint32_t triggered = 0;
   if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_9) != RESET)
   {
     /* Clear the EXTI line 8 pending bit */
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_9);
     triggered |= GPIO_PIN_9;
   }
-  
+
   if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_8) != RESET)
   {
     /* Clear the EXTI line 9 pending bit */
@@ -312,7 +312,7 @@ void EXTI9_5_IRQHandler(void)
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_5);
     triggered |= GPIO_PIN_5;
   }
- 
+
 #ifdef HALL_INTERRUPTS
   if (triggered & HALL_PIN_MASK)
     HallInterruptsInterrupt();
@@ -324,20 +324,20 @@ void EXTI9_5_IRQHandler(void)
       softwareserialRXInterrupt();
   }
 #endif
-} 
+}
 
 /////////////////////////////////////////////////////////////////////
 // actual IRQ for RIGHT pins 10, 11, 12
 void EXTI15_10_IRQHandler(void)
 {
-  unsigned long triggered = 0;
+  uint32_t triggered = 0;
   if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
   {
     /* Clear the EXTI line 8 pending bit */
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
     triggered |= GPIO_PIN_15;
   }
-  
+
   if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_14) != RESET)
   {
     /* Clear the EXTI line 9 pending bit */
@@ -381,7 +381,7 @@ void EXTI15_10_IRQHandler(void)
   }
 #endif
 
-} 
+}
 // end EXTI
 /////////////////////////////////////////
 
@@ -389,7 +389,7 @@ void EXTI15_10_IRQHandler(void)
 /////////////////////////////////////////
 // timer interrupts
 
-// 
+//
 // TIM2 is used in softwareserial, but without interrupts.
 // void TIM3_IRQHandler(void) - defined in softwareserial.c
 // void TIM4_IRQHandler(void) - defined in hallinterrupts.c

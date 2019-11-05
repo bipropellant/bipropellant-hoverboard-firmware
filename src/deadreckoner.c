@@ -17,10 +17,10 @@
 #define TIMER_RES (1000.0)
 
 static void computeAngularVelocities(DEADRECKONER *);
-static unsigned long getChange(unsigned long, unsigned long);
+static uint32_t getChange(uint32_t, uint32_t);
 
 
-DEADRECKONER *DeadReckoner(volatile long *pLeftTicks, volatile long *pRightTicks, double ticksPerRev, double wheelDiameter, double wheelBase, int useDegrees) {
+DEADRECKONER *DeadReckoner(volatile int32_t *pLeftTicks, volatile int32_t *pRightTicks, double ticksPerRev, double wheelDiameter, double wheelBase, int useDegrees) {
     // get zeroed structure
     DEADRECKONER *d = calloc(1, sizeof(DEADRECKONER));
 
@@ -118,7 +118,7 @@ void computeAngularVelocities(DEADRECKONER *d) {
 	d->prevWheelComputeTime = micros();
 }
 
-unsigned long getChange(unsigned long current, unsigned long previous) {
+uint32_t getChange(uint32_t current, uint32_t previous) {
 	// Overflow has occured
 	if (current < previous) {
 		return UNSIGNED_LONG_MAX - previous + current;

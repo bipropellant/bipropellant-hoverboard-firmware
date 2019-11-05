@@ -27,26 +27,26 @@
 
 typedef struct tag_time_stats {
     // times
-    long long now_us;
-    long long start_processing_us;
-    long long processing_in_us;
-    long long main_interval_us;
-    long long time_in_us;
-    long long main_delay_us;
-    long long main_processing_us;
+    int64_t now_us;
+    int64_t start_processing_us;
+    int64_t processing_in_us;
+    int64_t main_interval_us;
+    int64_t time_in_us;
+    int64_t main_delay_us;
+    int64_t main_processing_us;
 
-    long long nominal_delay_us;
+    int64_t nominal_delay_us;
 
-    long now_ms;
-    long start_processing_ms;
-    long processing_in_ms;
-    long main_interval_ms;
-    long time_in_ms;
-    long main_delay_ms;
-    long main_processing_ms;
+    int32_t now_ms;
+    int32_t start_processing_ms;
+    int32_t processing_in_ms;
+    int32_t main_interval_ms;
+    int32_t time_in_ms;
+    int32_t main_delay_ms;
+    int32_t main_processing_ms;
 
     // stats
-    long long us_lost;
+    int64_t us_lost;
     unsigned int main_late_count;
 
     float f_main_interval_ms;
@@ -94,7 +94,7 @@ void HallInterruptinit(void);
 void HallInterruptSetWheelDiameterInches(float inches);
 void HallInterruptSetWheelDiameterMM(float mm);
 void HallInterruptReset();
-long long HallGetuS(); // returns micro seconds (10 x the timer it is based on.....)
+int64_t HallGetuS(); // returns micro seconds (10 x the timer it is based on.....)
 
 // interrupt routine
 void HallInterruptsInterrupt(void);
@@ -104,14 +104,14 @@ void HallInterruptsInterrupt(void);
 // it may be useful to read the current position and zero it at the same time
 // this function provides this as an option, as well as getting a single
 // snapshot with interrupts disabled
-#pragma pack(push, 4)  // int and long are both 4 byte
+#pragma pack(push, 4)  // int and int32_t are both 4 byte
 typedef struct tag_HALL_POSN {
     struct {
         int HallPosn; // 90 per revolution
         int HallSpeed; // speed part calibrated to speed demand value
         int HallPosn_mm; // posn in m
         int HallSpeed_mm_per_s; // speed in m/s
-        unsigned long HallSkipped;
+        uint32_t HallSkipped;
     } wheel[2];
 } HALL_POSN;
 #pragma pack(pop)
@@ -127,8 +127,8 @@ typedef struct tag_HALL_PARAMS{
     uint8_t hall;
     uint8_t last_hall;
 
-    long long hall_time;
-    long long last_hall_time;
+    int64_t hall_time;
+    int64_t last_hall_time;
     unsigned int timerwraps;
     unsigned int last_timerwraps;
 
@@ -149,8 +149,8 @@ typedef struct tag_HALL_PARAMS{
 extern volatile HALL_DATA_STRUCT HallData[2];
 extern TIM_HandleTypeDef h_timer_hall;
 extern volatile HALL_PARAMS local_hall_params[2];
-extern volatile long long timerwraps;
-// extern volatile long long now_us;
+extern volatile int64_t timerwraps;
+// extern volatile int64_t now_us;
 
 
 #endif

@@ -33,20 +33,20 @@ extern PROTOCOL_SPEED_DATA SpeedData;
 extern PROTOCOL_PWM_DATA PWMData;
 
 
-#pragma pack(push, 4)  // long and float are 4 byte each
+#pragma pack(push, 4)  // int32_t and float are 4 byte each
 typedef struct tag_HALL_DATA_STRUCT{
-    long HallPosn; // 90 per revolution
-    long HallSpeed; // speed part calibrated to speed demand value
+    int32_t HallPosn; // 90 per revolution
+    int32_t HallSpeed; // speed part calibrated to speed demand value
 
     float HallPosnMultiplier; // m per hall segment
 
-    long HallPosn_lastread; // posn offset set via protocol in raw value
-    long HallPosn_mm; // posn in mm
-    long HallPosn_mm_lastread; // posn offset set via protocol in mm
-    long HallSpeed_mm_per_s; // speed in m/s
+    int32_t HallPosn_lastread; // posn offset set via protocol in raw value
+    int32_t HallPosn_mm; // posn in mm
+    int32_t HallPosn_mm_lastread; // posn offset set via protocol in mm
+    int32_t HallSpeed_mm_per_s; // speed in m/s
 
-    unsigned long HallTimeDiff;
-    unsigned long HallSkipped;
+    uint32_t HallTimeDiff;
+    uint32_t HallSkipped;
 } HALL_DATA_STRUCT;
 #pragma pack(pop)
 
@@ -101,28 +101,28 @@ typedef struct tag_sensor_frame{
 } SENSOR_FRAME;
 #pragma pack(pop)
 
-#pragma pack(push, 4)  // since on 'long' are used, alignment can be optimized for 4 bytes
+#pragma pack(push, 4)  // since on 'int32_t' are used, alignment can be optimized for 4 bytes
 typedef struct INTEGER_XYT_POSN_tag {
-    long x;
-    long y;
-    long degrees;
+    int32_t x;
+    int32_t y;
+    int32_t degrees;
 } INTEGER_XYT_POSN;
 #pragma pack(pop)
 
 
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_POSN {
-    long LeftAbsolute;
-    long RightAbsolute;
-    long LeftOffset;
-    long RightOffset;
+    int32_t LeftAbsolute;
+    int32_t RightAbsolute;
+    int32_t LeftOffset;
+    int32_t RightOffset;
 } POSN;
 #pragma pack(pop)
 
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_POSN_INCR {
-    long Left;
-    long Right;
+    int32_t Left;
+    int32_t Right;
 } POSN_INCR;
 #pragma pack(pop)
 

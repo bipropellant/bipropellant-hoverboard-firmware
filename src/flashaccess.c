@@ -35,7 +35,7 @@ unsigned short writeFlash16( volatile unsigned short *data, uint16_t len ){
 int writeFlash( unsigned char *data, int len ){
     char tmp[80];
 
-    sprintf(tmp, "\r\nflash root %lx", (unsigned long)flash_data);
+    sprintf(tmp, "\r\nflash root %lx", (uint32_t)flash_data);
     consoleLog(tmp);
 
     unsigned short *p = (unsigned short *)flash_data;
@@ -62,7 +62,7 @@ int writeFlash( unsigned char *data, int len ){
         start = (unsigned char *)flash_data;
         FLASH_EraseInitTypeDef eraseinfo;
         eraseinfo.NbPages = ((flashlen+2047)/2048);
-        eraseinfo.PageAddress = (unsigned long)flash_data;
+        eraseinfo.PageAddress = (uint32_t)flash_data;
         eraseinfo.TypeErase = FLASH_TYPEERASE_PAGES;
 
         uint32_t PageError = 0;
@@ -98,7 +98,7 @@ int writeFlash( unsigned char *data, int len ){
     }
 
     // now finish with the len
-    HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (unsigned long)dest, len);
+    HAL_StatusTypeDef res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (uint32_t)dest, len);
     if (res != HAL_OK){
         sprintf(tmp, "\r\nwrite fail %d", (int)res);
         consoleLog(tmp);
@@ -106,7 +106,7 @@ int writeFlash( unsigned char *data, int len ){
         return -1;
     }
 
-    sprintf(tmp, "\r\nwrote flash at %lx len %d", (unsigned long)start, len);
+    sprintf(tmp, "\r\nwrote flash at %lx len %d", (uint32_t)start, len);
     consoleLog(tmp);
     HAL_FLASH_Lock();
 
@@ -184,17 +184,17 @@ int flashposn(int *len){
 int writeflashchunk( void *addr, unsigned char *data, int len ){
     char tmp[40];
     // don't allow write in areas < page 64
-    if ((unsigned long)addr < (0x8000000 + 64*0x800))
+    if ((uint32_t)addr < (0x8000000 + 64*0x800))
         return -1;
 
     HAL_FLASH_Unlock();
     // if at the start of a page, then erase....
-    if (!(((unsigned long)addr) % 0x800)){
-        //unsigned long start = addr;
+    if (!(((uint32_t)addr) % 0x800)){
+        //uint32_t start = addr;
         FLASH_EraseInitTypeDef eraseinfo;
         // only ever 1 page here
         eraseinfo.NbPages = 1;
-        eraseinfo.PageAddress = (unsigned long)addr;
+        eraseinfo.PageAddress = (uint32_t)addr;
         eraseinfo.TypeErase = FLASH_TYPEERASE_PAGES;
 
         uint32_t PageError = 0;

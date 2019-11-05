@@ -70,7 +70,7 @@ uint32_t buzzerPattern = 0;
 uint32_t buzzerTimer    = 0;
 
 uint8_t enable = 0;
-volatile long long bldc_counter = 0;
+volatile int64_t bldc_counter = 0;
 volatile unsigned  bldc_count = 0;
 
 volatile unsigned  bldc_count_per_hall_counter[2] = {0,0};
@@ -168,9 +168,9 @@ void DMA1_Channel1_IRQHandler() {
 #ifdef HALL_INTERRUPTS
   // note: the h_timer_hall IS a 100khz clock, which we read here just to have a high accuracy time
   // updated at 16khz.
-  unsigned long time_in = DWT->CYCCNT;
+  uint32_t time_in = DWT->CYCCNT;
 #ifndef MINIMUMCODE
-  unsigned long time_in_100k = h_timer_hall.Instance->CNT;
+  uint32_t time_in_100k = h_timer_hall.Instance->CNT;
 #endif
 #endif
 
@@ -375,7 +375,7 @@ void DMA1_Channel1_IRQHandler() {
 
 #ifdef HALL_INTERRUPTS
   /* do something */
-  unsigned long time_out = DWT->CYCCNT;
+  uint32_t time_out = DWT->CYCCNT;
   if (time_out < time_in) {
     time_out += 0x80000000;
     time_in += 0x80000000;

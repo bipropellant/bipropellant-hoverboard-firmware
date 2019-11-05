@@ -46,7 +46,7 @@ typedef struct tag_SOFTWARE_SERIAL_BUFFER {
     volatile int tail;
     volatile int bit;
 
-    volatile unsigned long lasttime;
+    volatile uint32_t lasttime;
     volatile char lastvalue;
 
     // count of buffer overflows

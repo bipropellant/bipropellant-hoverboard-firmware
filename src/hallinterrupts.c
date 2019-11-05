@@ -78,7 +78,7 @@ extern volatile unsigned  bldc_count_per_hall_counter[2];
 TIM_HandleTypeDef h_timer_hall;
 volatile HALL_PARAMS local_hall_params[2];
 
-volatile long long timerwraps = 0;
+volatile int64_t timerwraps = 0;
 
 static float WheelSize_mm = (DEFAULT_WHEEL_SIZE_INCHES * 25.4);
 
@@ -210,11 +210,11 @@ static const int increments[7][7] =
 
 TIME_STATS timeStats;
 
-static volatile long long now_us = 0;
+static volatile int64_t now_us = 0;
 
-long long HallGetuS(){
+int64_t HallGetuS(){
     unsigned short time = h_timer_hall.Instance->CNT;
-    long long timerwraps_copy = timerwraps;
+    int64_t timerwraps_copy = timerwraps;
     now_us = ((timerwraps_copy<<16) + time) * 10;
     return now_us;
 }
@@ -225,8 +225,8 @@ long long HallGetuS(){
 void HallInterruptsInterrupt(void){
     // we only want the count from this 100khz clock
     __disable_irq(); // but we want both values at the same time, without interferance
-    unsigned long time = h_timer_hall.Instance->CNT;
-    long long timerwraps_copy = timerwraps;
+    uint32_t time = h_timer_hall.Instance->CNT;
+    int64_t timerwraps_copy = timerwraps;
     local_hall_params[0].hall = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
     local_hall_params[1].hall = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
 
@@ -254,7 +254,7 @@ void HallInterruptsInterrupt(void){
 
                 local_hall_params[i].zerospeedtimeout = 5; // number of timer wraps to after which to assume speed zero
                 local_hall_params[i].hall_time = (timerwraps_copy << 16) | time;
-                long long dt = local_hall_params[i].hall_time - local_hall_params[i].last_hall_time;
+                int64_t dt = local_hall_params[i].hall_time - local_hall_params[i].last_hall_time;
 
                 // note correction of direction for left wheel
                 local_hall_params[i].incr =
@@ -263,7 +263,7 @@ void HallInterruptsInterrupt(void){
 
                 HallData[i].HallPosn = HallData[i].HallPosn + local_hall_params[i].incr;
                 HallData[i].HallPosn_mm = (int)((float)HallData[i].HallPosn)*HallData[i].HallPosnMultiplier;
-                HallData[i].HallTimeDiff = (unsigned long)dt;
+                HallData[i].HallTimeDiff = (uint32_t)dt;
 
                 if (local_hall_params[i].incr != 0){
                     // speed = distance/time
