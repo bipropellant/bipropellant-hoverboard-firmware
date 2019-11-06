@@ -10,6 +10,7 @@
 #define USART3_CONTROLLED 3
 #define SOFTWARE_SERIAL_A2_A3 4
 #define HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9_6WORDSENSOR 5
+#define HOVERBOARD 6
 
 // thoery says this is the only thing you need to change....
 // Can also be preset from platformio.ini when using platform.io build environment
@@ -21,10 +22,32 @@
 //////////////////////////////////////////////////////////
 // implementaiton of specific for macro control types
 // provide a short explaination here
+#if (CONTROL_TYPE == HOVERBOARD)
+  // this control type allows the board to be used AS a hoverboard,
+  // responding to sensor movements when in hoverboard mode.
+  /// and uses softwareserial for serial control on B2/C9
+  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
+  #define READ_SENSOR
+  #define CONTROL_SENSOR
+  #define SOFTWARE_SERIAL
+  #define SOFTWATCHDOG_TIMEOUT -1   // Disable Watchdog, uses the same timer as SOFTWARE_SERIAL
+  #define DEBUG_SOFTWARE_SERIAL
+  #define SERIAL_USART2_IT
+  #define SERIAL_USART3_IT
+  #define USART2_BAUD     52350    // reported baudrate for other sensor boards (6 word)?
+  #define USART3_BAUD     52350    // reported baudrate for other sensor boards (6 word)?
+  #define USART2_WORDLENGTH UART_WORDLENGTH_9B
+  #define USART3_WORDLENGTH UART_WORDLENGTH_9B
+  #define SERIAL_USART_IT_BUFFERTYPE unsigned short
+  #define USART2_BAUD_SENSE 1
+  #define USART3_BAUD_SENSE 1
+#endif
+
 #if (CONTROL_TYPE == HOVERBOARD_WITH_SOFTWARE_SERIAL_B2_C9)
   // this control type allows the board to be used AS a hoverboard,
   // responding to sensor movements when in hoverboard mode.
   /// and uses softwareserial for serial control on B2/C9
+  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
   #define READ_SENSOR
   #define CONTROL_SENSOR
   #define SOFTWARE_SERIAL
@@ -44,7 +67,6 @@
   #define USART2_WORDLENGTH UART_WORDLENGTH_9B
   #define USART3_WORDLENGTH UART_WORDLENGTH_9B
   #define SERIAL_USART_IT_BUFFERTYPE unsigned short
-//#define SENSOR_WORDS 6
 //#define USART2_BAUD     32100    // reported baudrate for another sensor board  (10 word 'Denver' brand hoverboards)
 //#define USART3_BAUD     32100    // reported baudrate for another sensor board  (10 word 'Denver' brand hoverboards)
   // possibly baud rate based on ~2.5ms frame interval, so baud dependent on word count?
@@ -54,6 +76,7 @@
   // this control type allows the board to be used AS a hoverboard,
   // responding to sensor movements when in hoverboard mode.
   /// and uses softwareserial for serial control on B2/C9
+  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
   #define READ_SENSOR
   #define CONTROL_SENSOR
   #define SOFTWARE_SERIAL
@@ -65,7 +88,6 @@
   #define DEBUG_SOFTWARE_SERIAL
 //#define USART2_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud (10 word)
 //#define USART3_BAUD     52177    // control via usart from GD32 based sensor boards @52177 baud (10 word)
-//#define SENSOR_WORDS 10
   #define USART2_BAUD     26315    // reported baudrate for other sensor boards (6 word)?
   #define USART3_BAUD     26315    // reported baudrate for other sensor boards (6 word)?
   #define USART2_WORDLENGTH UART_WORDLENGTH_9B
@@ -84,6 +106,7 @@
   // hoverboard sensor functionality is disabled
   // and uses softwareserial for serial control on A2/A3 -
   // which are actually USART pins!
+  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
   #define SOFTWARE_SERIAL
   #define SOFTWARE_SERIAL_RX_PIN GPIO_PIN_2    // PB10/USART3_TX Pin29      PA2/USART2_TX/ADC123_IN2  Pin16
   #define SOFTWARE_SERIAL_RX_PORT GPIOA
@@ -97,7 +120,9 @@
 #if (CONTROL_TYPE == USART2_CONTROLLED)
   // hoverboard sensor functionality is disabled
   // and control is via USART2
+  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
   #define SERIAL_USART2_IT
+  #define PASE_ADV_ENA 0
 #endif
 
 
@@ -105,7 +130,9 @@
 #if (CONTROL_TYPE == USART3_CONTROLLED)
   // hoverboard sensor functionality is disabled
   // and control is via USART3
+  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
   #define SERIAL_USART3_IT
+  #define PASE_ADV_ENA 0
 #endif
 
 
@@ -346,7 +373,7 @@
 #endif
 
 #ifndef ADC_OFF_FILTER
-  #define ADC_OFF_FILTER 1.0          // Additional low pass Filter applied only to ADC Off functionality. 1.0=No Filter, 0.1 lots of Filtering
+  #define ADC_OFF_FILTER 1.0f         // Additional low pass Filter applied only to ADC Off functionality. 1.0=No Filter, 0.1 lots of Filtering
 #endif
 
 #ifndef ADC_SWITCH_CHANNELS
@@ -380,7 +407,7 @@
 
 //#define INCLUDE_PROTOCOL NO_PROTOCOL
 #ifndef INCLUDE_PROTOCOL
-  #define INCLUDE_PROTOCOL INCLUDE_PROTOCOL2
+  #define INCLUDE_PROTOCOL NO_PROTOCOL
 #endif
 // Log PWM value in position/speed control mode
 //define LOG_PWM

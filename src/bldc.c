@@ -157,22 +157,15 @@ void BldcController_Init(){
 //=640 cpu cycles
 // Careful - easy to use too many!
 
-#define MINIMUMCODE
-
 #define BLDC_LIMITER_DECREMENT 5
 
 // interrupt fires when ADC read is complete; read is triggerd from PWM timer.
 // so interrupt fires at PWM rate = 16khz
 void DMA1_Channel1_IRQHandler() {
   unsigned int hall[2];
-#ifdef HALL_INTERRUPTS
   // note: the h_timer_hall IS a 100khz clock, which we read here just to have a high accuracy time
   // updated at 16khz.
   uint32_t time_in = DWT->CYCCNT;
-#ifndef MINIMUMCODE
-  uint32_t time_in_100k = h_timer_hall.Instance->CNT;
-#endif
-#endif
 
   __disable_irq(); // but we want both values at the same time, without interferance
   hall[0] = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
@@ -232,9 +225,6 @@ void DMA1_Channel1_IRQHandler() {
 
   if (doLeft) {
     volatile MOTOR_ELECTRICAL *m = &electrical_measurements.motors[1];
-#ifndef MINIMUMCODE
-    bldc_count_per_hall_counter[0]++;
-#endif
     //disable PWM when current limit is reached (current chopping)
     if(input_timeout_counter > INPUT_TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
       LEFT_TIM->BDTR &= ~TIM_BDTR_MOE;
@@ -248,9 +238,6 @@ void DMA1_Channel1_IRQHandler() {
     if(abs_dc > electrical_measurements.dc_adc_limit) {
       if (m->pwm_limiter > BLDC_LIMITER_DECREMENT) {
         m->pwm_limiter -= BLDC_LIMITER_DECREMENT;
-#ifndef MINIMUMCODE
-        m->limiter_count++;
-#endif
       }
     } else {
       if (m->pwm_limiter < 1024) {
@@ -260,10 +247,6 @@ void DMA1_Channel1_IRQHandler() {
 
     // multiply by 1024 with shift.  divide by 0-1024 according to limiter
     int pwm_mod = (m->pwm_limiter*pwml) >> 10;
-#ifndef MINIMUMCODE
-    m->pwm_requested = pwml;
-    m->pwm_actual = pwm_mod;
-#endif
     int ul = 0, vl = 0, wl = 0;
     //update PWM channels based on position
 
@@ -306,9 +289,6 @@ void DMA1_Channel1_IRQHandler() {
   if (doRight) {
     volatile MOTOR_ELECTRICAL *m = &electrical_measurements.motors[1];
 
-#ifndef MINIMUMCODE
-    bldc_count_per_hall_counter[1]++;
-#endif
     if(input_timeout_counter > INPUT_TIMEOUT || enable == 0 || BldcControllerParams.initialized == 0) {
       RIGHT_TIM->BDTR &= ~TIM_BDTR_MOE;
     } else {
@@ -319,9 +299,6 @@ void DMA1_Channel1_IRQHandler() {
     if(abs_dc > electrical_measurements.dc_adc_limit) {
       if (m->pwm_limiter > BLDC_LIMITER_DECREMENT) {
         m->pwm_limiter -= BLDC_LIMITER_DECREMENT;
-#ifndef MINIMUMCODE
-        m->limiter_count++;
-#endif
       }
     } else {
       if (m->pwm_limiter < 1024) {
@@ -332,10 +309,6 @@ void DMA1_Channel1_IRQHandler() {
 
     // multiply by 1024 with shift.  divide by 0-1024 according to limiter
     int pwm_mod = (m->pwm_limiter*pwmr) >> 10;
-#ifndef MINIMUMCODE
-    m->pwm_actual = pwm_mod;
-    m->pwm_requested = pwmr;
-#endif
     int ur = 0, vr = 0, wr = 0;
     //update PWM channels based on position
 
@@ -373,24 +346,13 @@ void DMA1_Channel1_IRQHandler() {
     RIGHT_TIM->RIGHT_TIM_W = CLAMP(wr + pwm_res / 2, 10, pwm_res-10);
   }
 
-#ifdef HALL_INTERRUPTS
   /* do something */
   uint32_t time_out = DWT->CYCCNT;
   if (time_out < time_in) {
     time_out += 0x80000000;
     time_in += 0x80000000;
   }
-#ifndef MINIMUMCODE
-  unsigned short time_out_100k = h_timer_hall.Instance->CNT;
-  if (time_out_100k < time_in_100k) {
-    time_out_100k += 0x8000;
-    time_in_100k += 0x8000;
-  }
-
-  timeStats.bldc_100k = time_out_100k - time_in_100k;
-#endif
   timeStats.bldc_cycles = (time_out - time_in);
-#endif
 
   // if we are tranfer complete again before we finished, we're running too fast
   if (DMA1->ISR & DMA_ISR_TCIF1) {

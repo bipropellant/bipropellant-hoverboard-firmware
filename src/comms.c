@@ -107,11 +107,11 @@ void consoleLog(char *message)
     USART_sensorSend(1, (unsigned char *)message, strlen(message), 0);
     #else
       // TODO: Method to select which input is used for Protocol when both are active
-      #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+      #if defined(SERIAL_USART2_IT) && !defined(CONTROL_SENSOR)
         USART2_IT_send((unsigned char *)message, strlen(message));
-      #elif defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+      #elif defined(SERIAL_USART3_IT) && !defined(CONTROL_SENSOR)
         USART3_IT_send((unsigned char *)message, strlen(message));
-      #elif !defined(READ_SENSOR) && defined(DEBUG_SERIAL_SENSOR)
+      #elif !defined(CONTROL_SENSOR) && defined(DEBUG_SERIAL_SENSOR)
         HAL_UART_Transmit_DMA(&huart2, (uint8_t *)message, strlen(message));
       #endif
     #endif

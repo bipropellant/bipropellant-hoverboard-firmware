@@ -5,14 +5,10 @@
 #include "flashaccess.h"
 #include <string.h>
 
-#ifdef FLASH_STORAGE
 
 
 // pages are 2k=0x400 bytes
 
-// from flasharea.c, which reserves a page of flash for our use.
-//extern int flashlen;
-//extern volatile const uint8_t flash_data[];
 
 // last two pages of the first half
 volatile uint8_t *flash_data = (uint8_t *) 0x08000000 + 0x40000 - 0x800;
@@ -228,6 +224,3 @@ int writeflashchunk( void *addr, unsigned char *data, int len ){
 
     return len;
 }
-
-
-#endif

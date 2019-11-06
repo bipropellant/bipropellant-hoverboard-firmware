@@ -332,9 +332,8 @@ void MX_GPIO_Init(void) {
   GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull  = GPIO_NOPULL;
 
-  #ifdef HALL_INTERRUPTS
     GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING_FALLING;
-  #endif
+
 
   GPIO_InitStruct.Pin = LEFT_HALL_U_PIN;
   HAL_GPIO_Init(LEFT_HALL_U_PORT, &GPIO_InitStruct);

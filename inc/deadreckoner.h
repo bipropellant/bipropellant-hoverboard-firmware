@@ -1,7 +1,5 @@
 #pragma once
-
 #include <stdint.h>
-
 
 typedef struct DeadReckoner_tag {
 	volatile int32_t *leftTicks, *rightTicks; // Number of total wheel encoder tick counts for left and right wheels.

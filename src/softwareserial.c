@@ -37,8 +37,6 @@ TIM_HandleTypeDef softwareserialtimerTX;
 volatile unsigned int timerval = 0;
 volatile unsigned int ssbits = 0;
 
-#define DOTX
-
 #define SOFTWARE_SERIAL_BUFFER_SIZE 1024
 typedef struct tag_SOFTWARE_SERIAL_BUFFER {
     volatile unsigned char buff[SOFTWARE_SERIAL_BUFFER_SIZE];
@@ -92,7 +90,6 @@ void SoftwareSerialInit(void){
   HAL_TIM_Base_Init(&softwareserialtimer);
   HAL_TIM_Base_Start(&softwareserialtimer);
 
-#ifdef DOTX
 
   GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull  = GPIO_NOPULL;
@@ -115,7 +112,6 @@ void SoftwareSerialInit(void){
   __HAL_TIM_ENABLE_IT(&softwareserialtimerTX, TIM_IT_UPDATE);
   HAL_NVIC_SetPriority(TIM3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(TIM3_IRQn);
-#endif
 
   // and enable the interrupts.
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
@@ -301,7 +297,6 @@ void softwareserialRXInterrupt(void){
 }
 
 
-#ifdef DOTX
 // transmit interrupt
 void TIM3_IRQHandler(void){
     short t = -1;
@@ -353,7 +348,4 @@ void TIM3_IRQHandler(void){
 
 
 }
-#endif
-
-
 #endif

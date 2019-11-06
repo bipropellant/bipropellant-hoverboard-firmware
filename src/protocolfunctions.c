@@ -3,19 +3,15 @@
 #include "protocolfunctions.h"
 #include "bldc.h"
 #include "softwareserial.h"
-#ifdef FLASH_STORAGE
-    #include "flashcontent.h"
-    #include "flashaccess.h"
-#endif
+#include "flashcontent.h"
+#include "flashaccess.h"
 #include "comms.h"
 
 #include "stm32f1xx_hal.h"
 #ifdef CONTROL_SENSOR
     #include "sensorcoms.h"
 #endif
-#ifdef HALL_INTERRUPTS
-    #include "hallinterrupts.h"
-#endif
+#include "hallinterrupts.h"
 #include "deadreckoner.h"
 
 #include <string.h>
@@ -29,7 +25,7 @@
 #if defined(SERIAL_USART2_IT)
     PROTOCOL_STAT sUSART2;
 #endif
-#if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+#if defined(SERIAL_USART3_IT) && !defined(CONTROL_SENSOR)
     PROTOCOL_STAT sUSART3;
 #endif
 
@@ -54,21 +50,17 @@ void fn_enable ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned c
             break;
         case FN_TYPE_PRE_WRITE:
             if (!protocol_enable) {
-                #ifdef HALL_INTERRUPTS
-                    // assume we will enable,
-                    // set wanted posn to current posn, else we may rush into a wall
-                    PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
-                    PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
-                #endif
+                // assume we will enable,
+                // set wanted posn to current posn, else we may rush into a wall
+                PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+                PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
 
                 // clear speeds to zero
                 SpeedData.wanted_speed_mm_per_sec[0] = 0;
                 SpeedData.wanted_speed_mm_per_sec[1] = 0;
                 PWMData.pwm[0] = 0;
                 PWMData.pwm[1] = 0;
-                #ifdef FLASH_STORAGE
-                        init_PID_control();
-                #endif
+                init_PID_control();
             }
             enable = protocol_enable;
             break;
@@ -97,12 +89,10 @@ void fn_SensorData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsign
 
 #endif
 
-#ifdef HALL_INTERRUPTS
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x02 HallData
 
 /* see hallinterrupts.h */
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x03 SpeedData
@@ -125,7 +115,6 @@ void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigne
     }
 }
 
-#ifdef HALL_INTERRUPTS
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x04 Position
 
@@ -205,7 +194,6 @@ void fn_RawPosition ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsig
     }
 }
 
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x0A disablepoweroff
@@ -295,6 +283,7 @@ extern uint16_t buzzerLen;
 void fn_BuzzerData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
+        case FN_TYPE_POST_READRESPONSE:
             buzzerFreq      = ((PROTOCOL_BUZZER_DATA*) (param->ptr))->buzzerFreq;
             buzzerLen       = ((PROTOCOL_BUZZER_DATA*) (param->ptr))->buzzerLen;
             buzzerPattern   = ((PROTOCOL_BUZZER_DATA*) (param->ptr))->buzzerPattern;
@@ -309,7 +298,6 @@ void fn_BuzzerData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsign
 }
 
 
-#ifdef FLASH_STORAGE
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x80 to 0xA0 FlashContent
 
@@ -351,8 +339,6 @@ void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
     }
 }
 
-#endif
-
 
 
 
@@ -366,6 +352,11 @@ void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 ////////////////////////////////////////////////////////////////////////////////////////////
 // initialize protocol and register functions
 int setup_protocol() {
+
+    protocol_GetTick = HAL_GetTick;
+    protocol_Delay = HAL_Delay;
+    protocol_SystemReset =HAL_NVIC_SystemReset;
+
 
     int errors = 0;
 
@@ -383,7 +374,7 @@ int setup_protocol() {
     #endif
 
     #if defined(SERIAL_USART2_IT)
-      // initialise, even if READ_SENSOR, as we may switch vuia software to use this....
+      // initialise, even if CONTROL_SENSOR, as we may switch vuia software to use this....
       extern int USART2_IT_send(unsigned char *data, int len);
 
       errors += protocol_init(&sUSART2);
@@ -396,7 +387,7 @@ int setup_protocol() {
 
     #endif
 
-    #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+    #if defined(SERIAL_USART3_IT) && !defined(CONTROL_SENSOR)
 
       extern int USART3_IT_send(unsigned char *data, int len);
 
@@ -420,7 +411,6 @@ int setup_protocol() {
         setParamHandler(0x01, fn_SensorData);
     #endif
 
-    #ifdef HALL_INTERRUPTS
         errors += setParamVariable( 0x02, UI_NONE, (void *)&HallData,                  sizeof(HallData), PARAM_R);
         setParamHandler(0x02, NULL);
 
@@ -437,7 +427,6 @@ int setup_protocol() {
 
         errors += setParamVariable( 0x07, UI_NONE, &RawPosition,                  sizeof(RawPosition), PARAM_RW);
         setParamHandler(0x07, fn_RawPosition);
-    #endif
 
         errors += setParamVariable( 0x08, UI_NONE, (void *)&electrical_measurements,                  sizeof(ELECTRICAL_PARAMS), PARAM_R);
         setParamHandler(0x08, NULL);
@@ -461,7 +450,6 @@ int setup_protocol() {
         errors += setParamVariable( 0x21, UI_NONE, &BuzzerData,                  sizeof(BuzzerData), PARAM_RW);
         setParamHandler(0x21, fn_BuzzerData);
 
-    #ifdef FLASH_STORAGE
         errors += setParamVariable( 0x80, UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW);
         setParamHandler(0x80, fn_FlashContentMagic);
 
@@ -493,7 +481,6 @@ int setup_protocol() {
         setParamHandler(0x89, fn_FlashContentMaxCurrLim);
 
         errors += setParamVariable( 0x89, UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short), PARAM_RW);
-    #endif
 
 
 

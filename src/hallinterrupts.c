@@ -24,8 +24,6 @@
 #include <string.h>
 #include "control_structures.h"
 
-#ifdef HALL_INTERRUPTS
-
 //////////////////////////////////////////////////////////////
 // file reads Hall sensors, and gets Distance and Speed.
 // Uses:
@@ -310,5 +308,3 @@ void TIM4_IRQHandler(void){
         }
     }
 }
-
-#endif

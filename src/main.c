@@ -67,7 +67,7 @@ int sensor_control = 0;
 // the main thing qwhich determines how we are controlled from protocol
 int control_type = CONTROL_TYPE_NONE;
 
-#ifdef READ_SENSOR
+#ifdef CONTROL_SENSOR
 SENSOR_DATA last_sensor_data[2];
 int sensor_stabilise = 0;
 
@@ -219,7 +219,6 @@ void change_PID_constants(){
   }
 }
 
-#ifdef FLASH_STORAGE
 void init_flash_content(){
   FLASH_CONTENT FlashRead;
   int len = readFlash( (unsigned char *)&FlashRead, sizeof(FlashRead) );
@@ -231,8 +230,6 @@ void init_flash_content(){
   }
   memcpy(&FlashContent, &FlashRead, sizeof(FlashContent));
 }
-#endif
-
 
 int main(void) {
   HAL_Init();
@@ -255,14 +252,12 @@ int main(void) {
   HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
 
 #define WHEELBASE_MM 525.0
-#ifdef HALL_INTERRUPTS
   deadreconer = DeadReckoner(
     & HallData[0].HallPosn,
     & HallData[1].HallPosn,
     HALL_POSN_PER_REV,
     (DEFAULT_WHEEL_SIZE_INCHES*25.4),
     WHEELBASE_MM, 1);
-#endif
 
   SystemClock_Config();
 
@@ -283,7 +278,7 @@ int main(void) {
   HAL_ADC_Start(&hadc1);
   HAL_ADC_Start(&hadc2);
 
-  #ifdef READ_SENSOR
+  #ifdef CONTROL_SENSOR
   if (USART2_BAUD_SENSE) {
     autoSensorBaud2 = getSensorBaudRate(0);
   }
@@ -302,13 +297,11 @@ int main(void) {
   SoftwareSerialInit();
   #endif
 
-#ifdef FLASH_STORAGE
   init_flash_content();
 
   init_PID_control();
-#endif
 
-  #ifdef READ_SENSOR
+  #ifdef CONTROL_SENSOR
   // initialise to 9 bit interrupt driven comms on USART 2 & 3
   sensor_init();
   #endif
@@ -330,15 +323,14 @@ int main(void) {
 
   //int lastspeeds[2] = {0, 0};
 
-  #ifdef READ_SENSOR
+  #ifdef CONTROL_SENSOR
   // things we use in main loop for sensor control
   consoleLog("power on\n");
 
   #endif
-  #ifdef HALL_INTERRUPTS
+
     // enables interrupt reading of hall sensors for dead reconing wheel position.
     HallInterruptinit();
-  #endif
 
   #ifdef CONTROL_PPM
     PPM_Init();
@@ -413,7 +405,7 @@ int main(void) {
           protocol_tick( &sSoftwareSerial );
         #endif
 
-        #if defined(SERIAL_USART2_IT) && defined(READ_SENSOR)
+        #if defined(SERIAL_USART2_IT) && defined(CONTROL_SENSOR)
           // if we enabled USART2 as protocol from power button at startup
           if (USART2ProtocolEnable) {
             while ( serial_usart_buffer_count(&usart2_it_RXbuffer) > 0 ) {
@@ -423,14 +415,14 @@ int main(void) {
           }
         #endif
 
-        #if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
+        #if defined(SERIAL_USART2_IT) && !defined(CONTROL_SENSOR)
           while ( serial_usart_buffer_count(&usart2_it_RXbuffer) > 0 ) {
             protocol_byte( &sUSART2, (unsigned char) serial_usart_buffer_pop(&usart2_it_RXbuffer) );
           }
           protocol_tick( &sUSART2 );
         #endif
 
-        #if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
+        #if defined(SERIAL_USART3_IT) && !defined(CONTROL_SENSOR)
           while ( serial_usart_buffer_count(&usart3_it_RXbuffer) > 0 ) {
             protocol_byte( &sUSART3, (unsigned char) serial_usart_buffer_pop(&usart3_it_RXbuffer) );
           }
@@ -533,7 +525,7 @@ int main(void) {
 #endif
 
     if (!power_button_info.startup_button_held){
-    #ifdef READ_SENSOR
+    #ifdef CONTROL_SENSOR
       // read the last sensor message in the buffer
       sensor_read_data();
 
@@ -616,9 +608,9 @@ int main(void) {
         }
       #endif // end if control_sensor
 
-    #endif // READ_SENSOR
+    #endif // CONTROL_SENSOR
 
-    #if defined(INCLUDE_PROTOCOL)||defined(READ_SENSOR)
+    #if (INCLUDE_PROTOCOL != NO_PROTOCOL)||defined(CONTROL_SENSOR)
         if (!sensor_control || !FlashContent.HoverboardEnable){
           if ((last_control_type != control_type) || (!enable)){
             // nasty things happen if it's not re-initialised
@@ -631,30 +623,20 @@ int main(void) {
               for (int i = 0; i < 2; i++){
                 if (pid_need_compute(&PositionPid[i])) {
                   // Read process feedback
-#ifdef HALL_INTERRUPTS
                   PositionPidFloats[i].set = PosnData.wanted_posn_mm[i];
                   PositionPidFloats[i].in = HallData[i].HallPosn_mm;
-#endif
                   // Compute new PID output value
                   pid_compute(&PositionPid[i]);
                   //Change actuator value
                   int pwm = PositionPidFloats[i].out;
                   pwms[i] = pwm;
-                  #ifdef LOG_PWM
-                    if (i == 0){
-                      sprintf(tmp, "%d:%d\r\n", i, pwm);
-                      consoleLog(tmp);
                     }
-                  #endif
                 }
-              }
               break;
             case CONTROL_TYPE_SPEED:
               for (int i = 0; i < 2; i++){
                 // average speed over all the loops until pid_need_compute() returns !=0
-#ifdef HALL_INTERRUPTS
                 SpeedPidFloats[i].in += HallData[i].HallSpeed_mm_per_s;
-#endif
                 SpeedPidFloats[i].count++;
                 if (!enable){ // don't want anything building up
                   SpeedPidFloats[i].in = 0;
@@ -682,14 +664,8 @@ int main(void) {
                     pwms[i] =
                       CLAMP(pwms[i] + pwm, -SpeedData.speed_max_power, SpeedData.speed_max_power);
                   }
-                  #ifdef LOG_PWM
-                  if (i == 0){
-                    sprintf(tmp, "%d:%d(%d) S:%d H:%d\r\n", i, pwms[i], pwm, (int)SpeedPidFloats[i].set, (int)SpeedPidFloats[i].in);
-                    consoleLog(tmp);
                   }
-                  #endif
                 }
-              }
               break;
 
             case CONTROL_TYPE_PWM:
@@ -709,13 +685,15 @@ int main(void) {
         }
       #endif
 
-      #ifdef READ_SENSOR
+      #ifdef CONTROL_SENSOR
         // send twice to make sure each side gets it.
         // if we sent diagnositc data, it seems to need this.
         sensor_send_lights();
       #endif
 
-    #endif // INCLUDE_PROTOCOL)||defined(READ_SENSOR)
+    #else  // (INCLUDE_PROTOCOL != NO_PROTOCOL)||defined(CONTROL_SENSOR)
+      }
+    #endif // (INCLUDE_PROTOCOL != NO_PROTOCOL)||defined(CONTROL_SENSOR)
 
       // ####### LOW-PASS FILTER #######
       steer = steer * (1.0 - FILTER) + cmd1 * FILTER;
@@ -723,7 +701,7 @@ int main(void) {
 
 
       // ####### MIXER #######
-    #ifdef INCLUDE_PROTOCOL
+    #if (INCLUDE_PROTOCOL != NO_PROTOCOL)
       if(ADCcontrolActive) {
     #else
       if(1) {
@@ -1039,7 +1017,7 @@ void check_power_button(){
             HAL_Delay(100);
           }
 
-        #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+        #if defined CONTROL_SENSOR
           setUSART2ToControl();
           consoleLog("*** Write Flash Calibration data\r\n");
         #else
@@ -1068,7 +1046,7 @@ void check_power_button(){
             HAL_Delay(100);
           }
 
-        #if defined CONTROL_SENSOR && defined FLASH_STORAGE
+        #if defined CONTROL_SENSOR
           // read current board angles, and save to flash as center
           FlashContent.calibration_0 = sensor_data[0].Center_calibration = sensor_data[0].complete.Angle;
           FlashContent.calibration_1 = sensor_data[1].Center_calibration = sensor_data[1].complete.Angle;

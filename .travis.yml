@@ -44,7 +44,7 @@ matrix:
       before_script: arm-none-eabi-gcc --version
 
     - name: platformio
-      script: platformio run -e hoverboard -e hoverboard_6word -e control_softwareserial -e control_usart2 -e control_usart3 -e control_usart3_ADC
+      script: platformio run -e genericSTM32F103RC -e hoverboard -e hoverboard_6word -e control_softwareserial -e control_usart2 -e control_usart3 -e control_usart3_ADC -e control_ADC -e control_PPM
       language: python
       python:
         - "2.7"

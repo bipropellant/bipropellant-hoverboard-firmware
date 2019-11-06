@@ -20,9 +20,6 @@
 
 #include "config.h"
 #include "control_structures.h"
-
-#ifdef HALL_INTERRUPTS
-
 #include "defines.h"
 
 typedef struct tag_time_stats {
@@ -151,6 +148,3 @@ extern TIM_HandleTypeDef h_timer_hall;
 extern volatile HALL_PARAMS local_hall_params[2];
 extern volatile int64_t timerwraps;
 // extern volatile int64_t now_us;
-
-
-#endif

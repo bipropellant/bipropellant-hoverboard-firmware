@@ -44,7 +44,6 @@ src/comms.c \
 src/sensorcoms.c \
 src/softwareserial.c \
 src/hallinterrupts.c \
-src/flasharea.c \
 src/flashaccess.c \
 src/stm32f1xx_it.c \
 src/pid.c \
