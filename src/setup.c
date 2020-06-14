@@ -39,6 +39,7 @@ pb10 usart3 dma1 channel2/3
 #include "config.h"
 #include "comms.h"
 #include <string.h>
+#include "protocolfunctions.h"
 
 TIM_HandleTypeDef htim_right;
 TIM_HandleTypeDef htim_left;
@@ -66,7 +67,7 @@ volatile ADCBUFFERS adc_buffers = {
 
 // used in main
 int USART2ProtocolEnable = 0;
-#ifdef SERIAL_USART2_IT  
+#ifdef SERIAL_USART2_IT
   static int USART2WordLength = USART2_WORDLENGTH;
 #endif
 
@@ -704,7 +705,7 @@ void MX_ADC2_Init(void) {
 }
 
 void setUSART2ToControl( int enable ) {
-#ifdef SERIAL_USART2_IT  
+#ifdef SERIAL_USART2_IT
   static int PreviousBaud2;
 
   if (enable) {
@@ -725,5 +726,5 @@ void setUSART2ToControl( int enable ) {
       USART2_IT_init();
     }
   }
-#endif  
+#endif
 }

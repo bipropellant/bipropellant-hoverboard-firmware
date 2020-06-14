@@ -29,8 +29,7 @@
 
 // decimal to make it easier to type!
 #pragma once
-
-#define CURRENT_MAGIC 1234
+#include "protocol.h"
 
 #pragma pack(push, 2) // all variables of type unsigned short (2 bytes)
 typedef struct tag_FLASH_CONTENT{
@@ -52,16 +51,9 @@ typedef struct tag_FLASH_CONTENT{
     unsigned short calibration_0;
     unsigned short calibration_1;
     unsigned short HoverboardPWMLimit;
-
+    PROTOCOL_ADC_SETTINGS adc;
 } FLASH_CONTENT;
 #pragma pack(pop)
 
 extern FLASH_CONTENT FlashContent;
-
 extern const FLASH_CONTENT FlashDefaults;
-
-#ifndef FLASH_DEFAULT_HOVERBOARD_ENABLE
-#define FLASH_DEFAULT_HOVERBOARD_ENABLE 0
-#endif
-
-#define FLASH_DEFAULTS { CURRENT_MAGIC,    50, 50, 0, 1000,    20, 10, 0, 20,    1500,   FLASH_DEFAULT_HOVERBOARD_ENABLE, 0, 0, 1000 }

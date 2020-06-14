@@ -87,8 +87,18 @@ static float WheelSize_mm = (DEFAULT_WHEEL_SIZE_INCHES * 25.4);
 void HallInterruptinit(void){
     memset((void *)&HallData, 0, sizeof(HallData));
     memset((void *)&local_hall_params, 0, sizeof(local_hall_params));
+
+#if ((INVERT_L_DIRECTION == 1) && (SWITCH_WHEELS == 1)) || ((INVERT_L_DIRECTION == 0) && (SWITCH_WHEELS == 0))
     local_hall_params[0].direction = -1;
+#else
+    local_hall_params[0].direction = 1;
+#endif
+
+#if ((INVERT_R_DIRECTION == 1) && (SWITCH_WHEELS == 1)) || ((INVERT_R_DIRECTION == 0) && (SWITCH_WHEELS == 0))
     local_hall_params[1].direction = 1;
+#else
+    local_hall_params[1].direction = -1;
+#endif
 
     // overrides local fle default
     #ifdef WHEEL_SIZE_INCHES
@@ -149,8 +159,18 @@ void HallInterruptReset(){
     __enable_irq();
     memset((void *)&HallData, 0, sizeof(HallData));
     memset((void *)&local_hall_params, 0, sizeof(local_hall_params));
+
+#if ((INVERT_L_DIRECTION == 1) && (SWITCH_WHEELS == 1)) || ((INVERT_L_DIRECTION == 0) && (SWITCH_WHEELS == 0))
     local_hall_params[0].direction = -1;
+#else
+    local_hall_params[0].direction = 1;
+#endif
+
+#if ((INVERT_R_DIRECTION == 1) && (SWITCH_WHEELS == 1)) || ((INVERT_R_DIRECTION == 0) && (SWITCH_WHEELS == 0))
     local_hall_params[1].direction = 1;
+#else
+    local_hall_params[1].direction = -1;
+#endif
 
     HallData[0].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
     HallData[1].HallPosnMultiplier = (float)((WheelSize_mm*3.14159265359)/(float)HALL_POSN_PER_REV);
@@ -225,8 +245,14 @@ void HallInterruptsInterrupt(void){
     __disable_irq(); // but we want both values at the same time, without interferance
     uint32_t time = h_timer_hall.Instance->CNT;
     int64_t timerwraps_copy = timerwraps;
+
+#if (SWITCH_WHEELS == 0)
+    local_hall_params[1].hall = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
+    local_hall_params[0].hall = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
+#else
     local_hall_params[0].hall = (~(LEFT_HALL_U_PORT->IDR & (LEFT_HALL_U_PIN | LEFT_HALL_V_PIN | LEFT_HALL_W_PIN))/LEFT_HALL_U_PIN) & 7;
     local_hall_params[1].hall = (~(RIGHT_HALL_U_PORT->IDR & (RIGHT_HALL_U_PIN | RIGHT_HALL_V_PIN | RIGHT_HALL_W_PIN))/RIGHT_HALL_U_PIN) & 7;
+#endif
 
     unsigned short Left = LEFT_HALL_U_PORT->IDR;
     unsigned short Right = RIGHT_HALL_U_PORT->IDR;

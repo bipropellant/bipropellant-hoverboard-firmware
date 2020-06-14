@@ -38,6 +38,8 @@
 #include "control_structures.h"
 
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
 void BldcController_Init();
 
 void SystemClock_Config(void);
@@ -51,8 +53,9 @@ extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart2;
 
 extern volatile int64_t bldc_counter;
-int cmd1, cmd1_ADC, adcrFiltered;  // normalized input values. -1000 to 1000
-int cmd2, cmd2_ADC, adctFiltered;
+int cmd1, cmd2;                      // normalized input values. -1000 to 1000
+double cmd1_ADC, cmd2_ADC;           // ADC input values
+double adcrFiltered, adctFiltered;
 
 // used if set in setup.c
 int autoSensorBaud2 = 0; // in USART2_IT_init
@@ -151,7 +154,38 @@ int dspeeds[2] = {0,0};
 // variables stored in flash
 // from flashcontent.h
 FLASH_CONTENT FlashContent;
-const FLASH_CONTENT FlashDefaults = FLASH_DEFAULTS;
+const FLASH_CONTENT FlashDefaults = {
+  .magic = CURRENT_MAGIC,
+  .PositionKpx100 = 50,
+  .PositionKix100 = 50,
+  .PositionKdx100 = 0,
+  .PositionPWMLimit = 1000,
+  .SpeedKpx100 = 20,
+  .SpeedKix100 = 10,
+  .SpeedKdx100 = 0,
+  .SpeedPWMIncrementLimit = 20,
+  .MaxCurrLim = 1500,
+  .HoverboardEnable = FLASH_DEFAULT_HOVERBOARD_ENABLE,
+  .calibration_0 = 0,
+  .calibration_1 = 0,
+  .HoverboardPWMLimit = 1000,
+  .adc.adc1_mult_neg = ADC1_MULT_NEG,
+  .adc.adc1_mult_pos = ADC1_MULT_POS,
+  .adc.adc1_min = ADC1_MIN,
+  .adc.adc1_zero = ADC1_ZERO,
+  .adc.adc1_max = ADC1_MAX,
+  .adc.adc2_min = ADC2_MIN,
+  .adc.adc2_zero = ADC2_ZERO,
+  .adc.adc2_max = ADC2_MAX,
+  .adc.adc2_mult_neg = ADC2_MULT_NEG,
+  .adc.adc2_mult_pos = ADC2_MULT_POS,
+  .adc.adc_off_start = ADC_OFF_START,
+  .adc.adc_off_end = ADC_OFF_END,
+  .adc.adc_off_filter = ADC_OFF_FILTER,
+  .adc.adc_switch_channels = ADC_SWITCH_CHANNELS,
+  .adc.adc_reverse_steer = ADC_REVERSE_STEER,
+  .adc.adc_tankmode = ADC_TANKMODE,
+};
 
 
 typedef struct tag_PID_FLOATS{
@@ -344,7 +378,15 @@ int main(void) {
 
 
   // sets up serial ports, and enables protocol on selected ports
-  setup_protocol();
+#if defined(SOFTWARE_SERIAL) && (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+    setup_protocol(&sSoftwareSerial);
+#endif
+#if defined(SERIAL_USART2_IT) && (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+    setup_protocol(&sUSART2);
+#endif
+#if defined(SERIAL_USART3_IT) && (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2) && !defined(CONTROL_SENSOR)
+    setup_protocol(&sUSART3);
+#endif
 
   int last_control_type = CONTROL_TYPE_NONE;
 
@@ -474,28 +516,28 @@ int main(void) {
 #ifdef CONTROL_ADC
       // ADC values range: 0-4095, see ADC-calibration in config.h
 
-      adcrFiltered = adcrFiltered * (1.0 - ADC_OFF_FILTER) + adc_buffer.l_rx2 * ADC_OFF_FILTER;
-      adctFiltered = adctFiltered * (1.0 - ADC_OFF_FILTER) + adc_buffer.l_tx2 * ADC_OFF_FILTER;
+      adcrFiltered = adcrFiltered * (1.0 - FlashContent.adc.adc_off_filter ) + (double)adc_buffer.l_rx2 * FlashContent.adc.adc_off_filter;
+      adctFiltered = adctFiltered * (1.0 - FlashContent.adc.adc_off_filter ) + (double)adc_buffer.l_tx2 * FlashContent.adc.adc_off_filter;
 
 
 
-      if(adc_buffer.l_tx2 < ADC1_ZERO) {
-        cmd1_ADC = (CLAMP(adc_buffer.l_tx2, ADC1_MIN, ADC1_ZERO) - ADC1_ZERO) / ((ADC1_ZERO - ADC1_MIN) / ADC1_MULT_NEG); // ADC1 - Steer
+      if(adc_buffer.l_tx2 < FlashContent.adc.adc1_zero) {
+        cmd1_ADC = (double)(CLAMP(adc_buffer.l_tx2, FlashContent.adc.adc1_min, FlashContent.adc.adc1_zero) - FlashContent.adc.adc1_zero) / ((double)(FlashContent.adc.adc1_zero - FlashContent.adc.adc1_min) / FlashContent.adc.adc1_mult_neg); // ADC1 - Steer
       } else {
-        cmd1_ADC = (CLAMP(adc_buffer.l_tx2, ADC1_ZERO, ADC1_MAX) - ADC1_ZERO) / ((ADC1_MAX - ADC1_ZERO) / ADC1_MULT_POS); // ADC1 - Steer
+        cmd1_ADC = (double)(CLAMP(adc_buffer.l_tx2, FlashContent.adc.adc1_zero, FlashContent.adc.adc1_max) - FlashContent.adc.adc1_zero) / ((double)(FlashContent.adc.adc1_max - FlashContent.adc.adc1_zero) / FlashContent.adc.adc1_mult_pos); // ADC1 - Steer
       }
 
-      if(adc_buffer.l_rx2 < ADC2_ZERO) {
-        cmd2_ADC = (CLAMP(adc_buffer.l_rx2, ADC2_MIN, ADC2_ZERO) - ADC2_ZERO) / ((ADC2_ZERO - ADC2_MIN) / ADC2_MULT_NEG); // ADC2 - Speed
+      if(adc_buffer.l_rx2 < FlashContent.adc.adc2_zero) {
+        cmd2_ADC = (double)(CLAMP(adc_buffer.l_rx2, FlashContent.adc.adc2_min, FlashContent.adc.adc2_zero) - FlashContent.adc.adc2_zero) / ((double)(FlashContent.adc.adc2_zero - FlashContent.adc.adc2_min) / FlashContent.adc.adc2_mult_neg); // ADC2 - Speed
       } else {
-        cmd2_ADC = (CLAMP(adc_buffer.l_rx2, ADC2_ZERO, ADC2_MAX) - ADC2_ZERO) / ((ADC2_MAX - ADC2_ZERO) / ADC2_MULT_POS); // ADC2 - Speed
+        cmd2_ADC = (double)(CLAMP(adc_buffer.l_rx2, FlashContent.adc.adc2_zero, FlashContent.adc.adc2_max) - FlashContent.adc.adc2_zero) / ((double)(FlashContent.adc.adc2_max - FlashContent.adc.adc2_zero) / FlashContent.adc.adc2_mult_pos); // ADC2 - Speed
       }
 
-      if(ADC_SWITCH_CHANNELS) {
-        int cmdTemp = cmd1_ADC;
+      if(FlashContent.adc.adc_switch_channels) {
+        double cmdTemp = cmd1_ADC;
         cmd1_ADC = cmd2_ADC;
         cmd2_ADC = cmdTemp;
-        if((adctFiltered < ADC_OFF_START) || (adctFiltered > ADC_OFF_END) ) {
+        if((adctFiltered < FlashContent.adc.adc_off_start) || (adctFiltered > FlashContent.adc.adc_off_end) ) {
           ADCcontrolActive = true;
         } else {
           if(ADCcontrolActive) {
@@ -505,7 +547,7 @@ int main(void) {
           ADCcontrolActive = false;
         }
       } else {
-        if((adcrFiltered < ADC_OFF_START) || (adcrFiltered > ADC_OFF_END) ) {
+        if((adcrFiltered < FlashContent.adc.adc_off_start) || (adcrFiltered > FlashContent.adc.adc_off_end) ) {
           ADCcontrolActive = true;
         } else {
           if(ADCcontrolActive) {
@@ -516,9 +558,18 @@ int main(void) {
         }
       }
 
-      if(ADC_REVERSE_STEER) {
+      if(FlashContent.adc.adc_reverse_steer) {
         cmd1_ADC = -cmd1_ADC;
       }
+
+      if(FlashContent.adc.adc_squared_steer) {
+        cmd1_ADC = cmd1_ADC * fabs(cmd1_ADC);
+      }
+
+
+      cmd1_ADC = cmd1_ADC * (1.0 + (fabs(cmd2_ADC) * FlashContent.adc.adc_relative_steer));
+
+
       // use ADCs as button inputs:
       button1_ADC = (uint8_t)(adc_buffer.l_tx2 > 2000);  // ADC1
       button2_ADC = (uint8_t)(adc_buffer.l_rx2 > 2000);  // ADC2
@@ -908,7 +959,16 @@ int main(void) {
 
     ////////////////////////////////
     // increase input_timeout_counter
-    if(!enable_immediate) input_timeout_counter++;
+
+// TODO: What to do when multiple interfaces have the protocol attached?
+#ifdef SOFTWARE_SERIAL
+    if(!sSoftwareSerial.ascii.enable_immediate) input_timeout_counter++;
+#elif defined(SERIAL_USART2_IT)
+    if(!sUSART2.ascii.enable_immediate) input_timeout_counter++;
+#elif defined(SERIAL_USART3_IT) && !defined(CONTROL_SENSOR)
+    if(!sUSART3.ascii.enable_immediate) input_timeout_counter++;
+#endif
+
   }
 }
 

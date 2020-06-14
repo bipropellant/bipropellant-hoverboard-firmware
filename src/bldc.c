@@ -6,6 +6,7 @@
 #include "bldc.h"
 #include "hallinterrupts.h"
 #include "comms.h"
+#include "protocolfunctions.h"
 
 // Matlab includes and defines - from auto-code generation
 // ###############################################################################

@@ -95,29 +95,6 @@ void consoleScope() {
 
 }
 
-void consoleLog(char *message)
-{
-    #ifdef DEBUG_SOFTWARE_SERIAL
-    if (debug_out){
-      softwareserial_Send((uint8_t *)message, strlen(message));
-    }
-    #endif
-
-    #if defined DEBUG_SERIAL_SENSOR && defined CONTROL_SENSOR
-    USART_sensorSend(1, (unsigned char *)message, strlen(message), 0);
-    #else
-      // TODO: Method to select which input is used for Protocol when both are active
-      #if defined(SERIAL_USART2_IT) && !defined(CONTROL_SENSOR)
-        USART2_IT_send((unsigned char *)message, strlen(message));
-      #elif defined(SERIAL_USART3_IT) && !defined(CONTROL_SENSOR)
-        USART3_IT_send((unsigned char *)message, strlen(message));
-      #elif !defined(CONTROL_SENSOR) && defined(DEBUG_SERIAL_SENSOR)
-        HAL_UART_Transmit_DMA(&huart2, (uint8_t *)message, strlen(message));
-      #endif
-    #endif
-}
-
-
 #ifdef SERIAL_USART2_IT
 
 int USART2_IT_starttx() {

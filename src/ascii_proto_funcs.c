@@ -26,6 +26,7 @@
     #include "sensorcoms.h"
 #endif
 #include "protocolfunctions.h"
+#include "protocol.h"
 #include "hallinterrupts.h"
 #ifdef SOFTWARE_SERIAL
     #include "softwareserial.h"
@@ -98,7 +99,7 @@ static char *control_types[]={
 ///////////////////////////////////////////////
 
 
-extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
+extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg);
 
 
 
@@ -189,7 +190,7 @@ int immediate_stop(PROTOCOL_STAT *s, char byte, char *ascii_out) {
 }
 
 int immediate_quit(PROTOCOL_STAT *s, char byte, char *ascii_out) {
-    enable_immediate = 0;
+    s->ascii.enable_immediate = 0;
     speedB = 0;
     steerB = 0;
     PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
@@ -353,21 +354,27 @@ int line_generic_var(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
         } else {
             if ((cmd[1] | 0x20) == 'a'){
                 // read all
-                for (int i = 0; i < (sizeof(params)/sizeof(params[0])); i++){
-                    if(params[i] != NULL) {
-                        if (params[i]->uistr){
-                            switch (params[i]->ui_type){
+                for (int i = 0; i < (sizeof(s->params)/sizeof(s->params[0])); i++){
+                    if(s->params[i] != NULL) {
+                        if (s->params[i]->uistr){
+                            switch (s->params[i]->ui_type){
                                 case UI_SHORT:
+                                {
                                     // read it
-                                    if (params[i]->fn) params[i]->fn( s, params[i], FN_TYPE_PRE_READ, NULL, 0 );
+
+                                    PROTOCOL_MSG3full newMsg;
+                                    memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
+
+                                    if (s->params[i]->fn) s->params[i]->fn( s, s->params[i], PROTOCOL_CMD_SILENTREAD, &newMsg);
+
                                     sprintf(ascii_out, "%s(%s): %d\r\n",
-                                            (params[i]->description)?params[i]->description:"",
-                                            params[i]->uistr,
-                                            (int)*(short *)params[i]->ptr);
+                                            (s->params[i]->description)?s->params[i]->description:"",
+                                            s->params[i]->uistr,
+                                            (int)*(short *)newMsg.content);
                                     s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                                     ascii_out[0] = 0; // don't print last one twice
-                                    if (params[i]->fn) params[i]->fn( s, params[i], FN_TYPE_POST_READ, NULL, 0 );
                                     break;
+                                }
                                 default:
                                     break;
                             }
@@ -376,39 +383,50 @@ int line_generic_var(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
                 }
             } else {
                 int i = 0;
-                int count = (sizeof(params)/sizeof(params[0]));
+                int count = (sizeof(s->params)/sizeof(s->params[0]));
                 for (i = 0; i < count; i++){
-                    if(params[i] != NULL) {
-                        if (params[i]->uistr){
-                            if (!strncmp(params[i]->uistr, &cmd[1], strlen(params[i]->uistr))){
-                                switch (params[i]->ui_type){
+                    if(s->params[i] != NULL) {
+                        if (s->params[i]->uistr){
+                            if (!strncmp(s->params[i]->uistr, &cmd[1], strlen(s->params[i]->uistr))){
+                                switch (s->params[i]->ui_type){
                                     case UI_SHORT:
                                         // if number supplied, write
-                                        if ((cmd[1+strlen(params[i]->uistr)] >= '0') && (cmd[1+strlen(params[i]->uistr)] <= '9')){
-                                            if (params[i]->fn) params[i]->fn( s, params[i], FN_TYPE_PRE_WRITE, NULL, 0 );
-                                            *((short *)params[i]->ptr) = atoi(&cmd[1+strlen(params[i]->uistr)]);
-                                            if (params[i]->fn) params[i]->fn( s, params[i], FN_TYPE_POST_WRITE, NULL, 0 );
+                                        if ((cmd[1+strlen(s->params[i]->uistr)] >= '0') && (cmd[1+strlen(s->params[i]->uistr)] <= '9')){
+
+                                            PROTOCOL_MSG3full newMsg;
+                                            memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
+
+                                            *((short *)newMsg.content) = atoi(&cmd[1+strlen(s->params[i]->uistr)]);
+                                            newMsg.code = s->params[i]->code;
+                                            newMsg.cmd = PROTOCOL_CMD_READVALRESPONSE;
+
+                                            if (s->params[i]->fn) s->params[i]->fn( s, s->params[i], PROTOCOL_CMD_READVALRESPONSE, &newMsg);
+
+
                                             sprintf(ascii_out, "flash var %s(%s) now %d\r\n",
-                                                (params[i]->description)?params[i]->description:"",
-                                                params[i]->uistr,
-                                                (int)*(short *)params[i]->ptr);
+                                                (s->params[i]->description)?s->params[i]->description:"",
+                                                s->params[i]->uistr,
+                                                (int)*(short *)s->params[i]->ptr);
                                         } else {
                                             // read it
-                                            if (params[i]->fn) params[i]->fn( s, params[i], FN_TYPE_PRE_READ, NULL, 0 );
+                                            PROTOCOL_MSG3full newMsg;
+                                            memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
+
+                                            if (s->params[i]->fn) s->params[i]->fn( s, s->params[i], PROTOCOL_CMD_SILENTREAD, &newMsg);
+
                                             sprintf(ascii_out, "%s(%s): %d\r\n",
-                                                    (params[i]->description)?params[i]->description:"",
-                                                    params[i]->uistr,
-                                                    (int)*(short *)params[i]->ptr
+                                                    (s->params[i]->description)?s->params[i]->description:"",
+                                                    s->params[i]->uistr,
+                                                    (int)*(short *)s->params[i]->ptr
                                             );
                                             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                                             ascii_out[0] = 0; // don't print last one twice
-                                            if (params[i]->fn) params[i]->fn( s, params[i], FN_TYPE_POST_READ, NULL, 0 );
                                         }
                                         break;
                                     default:
                                         sprintf(ascii_out, "flash var %s(%s) unsupported type\r\n",
-                                                (params[i]->description)?params[i]->description:"",
-                                                params[i]->uistr
+                                                (s->params[i]->description)?s->params[i]->description:"",
+                                                s->params[i]->uistr
                                         );
                                         break;
                                 }
@@ -428,7 +446,7 @@ int line_generic_var(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
 
 
 // must be after all params added?
-char *get_F_description() {
+char *get_F_description(PROTOCOL_STAT *s) {
 
     char *p = NULL;
     int len = 0;
@@ -442,14 +460,14 @@ char *get_F_description() {
 
         if (p) strcat(p, t);
 
-        for (int i = 0; i < (sizeof(params)/sizeof(params[0])); i++){
-            if(params[i] != NULL) {
-                if (params[i]->uistr){
+        for (int i = 0; i < (sizeof(s->params)/sizeof(s->params[0])); i++){
+            if(s->params[i] != NULL) {
+                if (s->params[i]->uistr){
                     char tmp[256];
                     snprintf(tmp, sizeof(tmp)-1,
                         "  F%s<n> - %s\r\n",
-                            params[i]->uistr,
-                            (params[i]->description)?params[i]->description:""
+                            s->params[i]->uistr,
+                            (s->params[i]->description)?s->params[i]->description:""
                         );
                     len += strlen(tmp);
                     if (p) strcat(p, tmp);
@@ -490,22 +508,22 @@ int line_immediate(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
     PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
     PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
     if (strlen(cmd) == 1){
-        enable_immediate = 1;
+        s->ascii.enable_immediate = 1;
         sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ\r\n>");
     } else {
         switch (cmd[1] | 0x20){
             case 's':
-                enable_immediate = 1;
+                s->ascii.enable_immediate = 1;
                 control_type = CONTROL_TYPE_SPEED;
                 sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Speed control\r\n>");
                 break;
             case 'p':
-                enable_immediate = 1;
+                s->ascii.enable_immediate = 1;
                 control_type = CONTROL_TYPE_POSITION;
                 sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Position control\r\n>");
                 break;
             case 'w':
-                enable_immediate = 1;
+                s->ascii.enable_immediate = 1;
                 control_type = CONTROL_TYPE_PWM;
                 sprintf(ascii_out, "Immediate commands enabled - WASDXHCGQ - Power (pWm) control\r\n>");
                 break;
@@ -574,7 +592,7 @@ int line_test_message(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
             case 'T':
             case 't':{
                     char tmp[] = { PROTOCOL_SOM_ACK, 0, 5, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't' };
-                    protocol_post(s, (PROTOCOL_MSG2*)tmp);
+                    protocol_post(s, (PROTOCOL_MSG3full*)tmp);
                 }
                 break;
         }
@@ -632,7 +650,7 @@ int line_read_memory(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
 /////////////////////////////////////////////
 // single byte commands at start of command
 // - i.e. only after CR of LF and ascii buffer empty
-int main_ascii_init(){
+int main_ascii_init(PROTOCOL_STAT *s){
 
     ascii_add_immediate( 'W', immediate_dir, "Faster" );
     ascii_add_immediate( 'S', immediate_dir, "Slower");
@@ -668,7 +686,7 @@ int main_ascii_init(){
     ascii_add_line_fn( 'I', line_immediate, "enable immediate commands - Ip/Is/Iw - direct to posn/speed/pwm control\r\n");
     ascii_add_line_fn( 'G', line_stm32, "display stm32 specific");
 
-    ascii_add_line_fn( 'F', line_generic_var, get_F_description());
+    ascii_add_line_fn( 'F', line_generic_var, get_F_description(s));
 
     return 1;
 }

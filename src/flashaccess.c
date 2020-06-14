@@ -4,6 +4,7 @@
 #include "comms.h"
 #include "flashaccess.h"
 #include <string.h>
+#include "protocolfunctions.h"
 
 
 
